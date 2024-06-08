@@ -1,7 +1,7 @@
 import «oPCF».Syntax
-import «oPCF».Operation
 import «oPCF».Domain
 import «oPCF».Flat
+import «oPCF».Utility
 
 structure DomainType : Type (i + 1) :=
   carrier : Type i
@@ -11,56 +11,58 @@ structure DomainType : Type (i + 1) :=
 instance : Coe DomainType Type where
   coe D := D.carrier
 
+instance (τ : DomainType) : Order (τ) := τ.order
+instance (τ : DomainType) : Domain (τ) := τ.domain
+
 -- Definition 22.
-noncomputable def ty_deno (τ : Ty) : DomainType := by
-  induction τ with
-  | bool => exact ⟨Flat Bool, _, inferInstance⟩
-  | nat => exact ⟨Flat Nat, _, inferInstance⟩
-  | pow _ _ T₀ T₁ =>
-    obtain ⟨T₀, O₀, D₀⟩ := T₀
-    obtain ⟨T₁, O₁, D₁⟩ := T₁
+noncomputable def ty_deno : Ty → DomainType
+  | .bool => ⟨Flat Bool, _, inferInstance⟩
+  | .nat => ⟨Flat Nat, _, inferInstance⟩
+  | .pow T₀ T₁ => by
+    obtain ⟨T₀, O₀, D₀⟩ := ty_deno T₀
+    obtain ⟨T₁, O₁, D₁⟩ := ty_deno T₁
     exact ⟨Cont T₀ T₁,  _ , inferInstance⟩
 
-notation:100 "⟦" τ "⟧" => ty_deno τ
+notation:max "⟦" τ "⟧" => ty_deno τ
 
-noncomputable instance (τ : Ty) : Order ↑(⟦τ⟧) := ⟦τ⟧.order
-noncomputable instance (τ : Ty) : Domain ↑(⟦τ⟧) := ⟦τ⟧.domain
+instance (τ υ : Ty): CoeFun (⟦τ ⇒ υ⟧.carrier) (fun _ => ⟦τ⟧.carrier → ⟦υ⟧.carrier) where
+  coe f := f.fn.act
 
 -- Definition 23.
-def Ev (Γ : Cx) : Type := ∀ {τ}, Var Γ τ → ↑(⟦τ⟧)
+def Ev (Γ : Cx) : Type := ∀ τ, Var Γ τ → ↑⟦τ⟧
 
 notation:100 "⟦" Γ "⟧" => Ev Γ
 
-def Ev.push {Γ : Cx} (ρ : ⟦Γ⟧) {τ : Ty} (d : ⟦τ⟧) : Ev (Γ ∷ τ) :=
+def Ev.nil : ⟦Cx.nil⟧ := by
+  intro _ x
+  cases x
+
+def Ev.push {Γ : Cx} (ρ : ⟦Γ⟧) {τ : Ty} (d : ⟦τ⟧) : ⟦Γ ∷ τ⟧ :=
   fun {τ} x ↦ match x with
   | .z => d
-  | .s x => ρ x
+  | .s x => ρ _ x
 
 noncomputable instance (Γ : Cx) : Order (⟦Γ⟧) where
-  R := fun a b ↦ ∀ {τ} (x : Var Γ τ), a x ⊑ b x
-  refl := fun _ ↦ ⋆
-  trans := fun {_ _ _} p q {_} x ↦ p x ⬝ q x
-  anti := fun p q ↦ funext fun _ ↦ (funext fun x ↦ p x ⇄! q x)
+  R := fun a b ↦ ∀ τ (x : Var Γ τ), a τ x ⊑ b τ x
+  refl := fun _ _ ↦ ⋆
+  trans := fun {_ _ _} p q {_} x ↦ p _ x ⬝ q _ x
+  anti := fun p q ↦ funext fun _ ↦ (funext fun x ↦ p _ x ⇄! q _ x)
 
 noncomputable instance (Γ : Cx) : Domain (⟦Γ⟧) where
-  bot := fun _ ↦ ⊥
-  sup := fun c _ x ↦ ⨆ ⟨fun n ↦ c.act n x, fun i_j ↦ c.act' i_j x⟩
-  is_bot := fun _ ↦ Domain.is_bot
-  is_bound := fun c {n} {_} x ↦ Domain.is_bound ⟨fun n ↦ c.act n x, fun i_j ↦ c.act' i_j x⟩ n
-  is_least := fun c _ p {_} x ↦ Domain.is_least ⟨fun n ↦ c.act n x, fun i_j ↦ c.act' i_j x⟩ (fun {_} ↦ p x)
-
-def Nat.zero? : Nat → Bool
-| .zero => true
-| _ => false
+  bot := fun _ _ ↦ ⊥
+  sup := fun c _ x ↦ ⨆ ⟨fun n ↦ c.act n _ x, fun i_j ↦ c.act' i_j _ x⟩
+  is_bot := fun _ _ ↦ Domain.is_bot
+  is_bound := fun c {n} {_} x ↦ Domain.is_bound ⟨fun n ↦ c.act n _ x, fun i_j ↦ c.act' i_j _ x⟩ n
+  is_least := fun c _ p {_} x ↦ Domain.is_least ⟨fun n ↦ c.act n _ x, fun i_j ↦ c.act' i_j _ x⟩ (fun {_} ↦ p _ x)
 
 def Ev.from {Γ : Cx} {τ : Ty} : Cont (⟦Γ⟧ × ⟦τ⟧) (⟦Γ ∷ τ⟧) := ⟨
   ⟨
-    fun ⟨ρ, d⟩ υ x ↦ ρ.push d x,
+    fun ⟨ρ, d⟩ υ x ↦ ρ.push d υ x,
     by {
       intro ⟨ρ₀, d₀⟩ ⟨ρ₁, d₁⟩ ⟨ρ', d'⟩ υ x
       cases x with
       | z => exact d'
-      | s x => exact ρ' x
+      | s x => exact ρ' _ x
     }
   ⟩,
   by {
@@ -99,14 +101,14 @@ def Cont.cond [Order α] [Domain α] : Cont (Flat Bool) (Cont (α × α) α) := 
     case neg h =>
       obtain ⟨s, j₀⟩ := Flat.invert h
       obtain ⟨n, j₁⟩ := flat_sup_some.mpr j₀
-      calc ((cond' $ ⨆ c).fn $ p)
-        _ ⊑ ((cond' $ (c $ n)).fn $ p) := by rw [j₀, j₁]; exact ⋆
-        _ ⊑ ((⨆ (cond' ∘ c)).fn $ p) := (Domain.is_bound (cond' ∘ c) n) p
+      calc ((cond' (⨆ c)).fn p)
+        _ = ((cond' (c n)).fn p) := by rw [j₀, j₁]
+        _ ⊑ ((⨆ (cond' ∘ c)).fn p) := (Domain.is_bound (cond' ∘ c) n) p
   }
 ⟩
 
 noncomputable def denotation : (Γ ⊢ τ) → Cont (⟦Γ⟧) (⟦τ⟧)
-  | .var x => ⟨⟨fun ρ ↦ ρ x, fun ρ₀_ρ₁ ↦ ρ₀_ρ₁ x⟩, ⋆⟩
+  | .var x => ⟨⟨fun ρ ↦ ρ _ x, fun ρ₀_ρ₁ ↦ ρ₀_ρ₁ _ x⟩, ⋆⟩
   | .true => Cont.const (.some true)
   | .false => Cont.const (.some false)
   | .zero => Cont.const (.some 0)
@@ -114,12 +116,26 @@ noncomputable def denotation : (Γ ⊢ τ) → Cont (⟦Γ⟧) (⟦τ⟧)
   | .pred e => Cont.flat (Nat.pred) ∘ denotation e
   | .zero? e => Cont.flat (Nat.zero?) ∘ denotation e
   | .cond s t f  => Cont.uncurry (Cont.cond) ∘ Cont.pair (denotation s) (Cont.pair (denotation t) (denotation f))
-  | @Tm.fn Γ τ υ e  => by {
-    show Cont (⟦Γ⟧) (Cont (⟦τ⟧) (⟦υ⟧))
-    exact Cont.curry (denotation e ∘ Ev.from)
-    }
-  | @Tm.app Γ τ υ f e => by {
-    have f' : Cont (⟦Γ⟧) (Cont (⟦τ⟧) (⟦υ⟧)) := denotation f
-    exact Cont.eval ∘ (Cont.pair f' (denotation e))
-  }
-  | .fix f => Cont.fix ∘ denotation f
+  | .fn e  => Cont.curry (denotation e ∘ Ev.from)
+  | .app f e => Cont.eval ∘ (Cont.pair (denotation f) (denotation e))
+  | .fix f => Cont.fix' ∘ denotation f
+
+notation:100 "⟦" t "⟧" => denotation t
+
+noncomputable def denotation_ren (r : Ren Γ Δ) : Cont (⟦Δ⟧) (⟦Γ⟧) :=
+  ⟨⟨fun ρ _ x ↦ (⟦Tm.var (r x)⟧) ρ, fun ρ' _ x ↦ (⟦Tm.var (r x)⟧) • ρ'⟩, fun _ x ↦ (⟦Tm.var (r x)⟧).sub⟩
+
+notation:100 "⟦" r "⟧" => denotation_ren r
+
+noncomputable def denotation_subst (σ : Subst Γ Δ) : Cont (⟦Δ⟧) (⟦Γ⟧) :=
+  ⟨⟨fun ρ τ x ↦ (⟦σ τ x⟧) ρ, fun ρ' τ x ↦ (⟦σ τ x⟧) • ρ'⟩, fun τ x ↦ (⟦σ τ x⟧).sub⟩
+
+notation:100 "⟦" σ "⟧" => denotation_subst σ
+
+def Tm.is_value.ground_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
+  | .true, .true => ⟨.true, rfl⟩
+  | .false, .false => ⟨.false, rfl⟩
+
+def Tm.is_value.ground_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
+  | .zero, .zero => ⟨.zero, rfl⟩
+  | .succ _, .succ v' => let Φ := ground_nat v'; ⟨Φ.fst.succ, ap (Tm.succ) Φ.snd⟩

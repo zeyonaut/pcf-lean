@@ -12,8 +12,10 @@ structure Cont (α) (β) [Order α] [Order β] [Domain α] [Domain β] where
   fn : Mono α β
   sub : ∀ {c : Chain α}, fn.act (⨆ c) ⊑ ⨆ (fn ∘ c)
 
-notation:101 f " $ " x:100 => Mono.act (Cont.fn f) x
-notation:101 f " $ " x:100 => Mono.act' (Cont.fn f) x
+instance [Order α] [Order β] [Domain α] [Domain β] : CoeFun (Cont α β) (fun _ => α → β) where
+  coe f := f.fn.act
+
+notation:101 f " • " x:100 => Mono.act' (Cont.fn f) x
 
 @[ext] theorem Cont.ext [Order α] [Order β] [Domain α] [Domain β] {f g : Cont α β} (p : f.fn.act = g.fn.act) : f = g := by
   obtain ⟨f, _⟩ := f
@@ -40,7 +42,7 @@ def Cont.snd [Order α] [Order β] [Domain α] [Domain β] : Cont (α × β) β 
 
 def Cont.pair [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ]
   (f : Cont γ α) (g : Cont γ β) : Cont γ (α × β) := ⟨
-    ⟨fun c ↦ ⟨f $ c, g $ c⟩, fun p ↦ ⟨f $ p, g $ p⟩⟩,
+    ⟨fun c ↦ ⟨f c, g c⟩, fun p ↦ ⟨f • p, g • p⟩⟩,
     ⟨f.sub ⬝ sup_is_mono (fun _ ↦ ⋆), g.sub ⬝ sup_is_mono (fun _ ↦ ⋆)⟩
   ⟩
 
@@ -53,9 +55,9 @@ def diagonalize_eval [Order α] [Order β] [Domain β] (c : Chain (Mono α β)) 
     intro i
     apply Domain.is_least
     intro j
-    calc (c $ i).act (d $ j)
-      _ ⊑ (c $ i).act (d $ (max i j))         := (c $ i).act' (d.act' (Nat.le_max_right ..))
-      _ ⊑ (c $ (max i j)).act (d $ (max i j)) := (c.act' (Nat.le_max_left ..)) _
+    calc (c i).act (d j)
+      _ ⊑ (c i).act (d (max i j))         := (c i).act' (d.act' (Nat.le_max_right ..))
+      _ ⊑ (c (max i j)).act (d (max i j)) := (c.act' (Nat.le_max_left ..)) _
       _ ⊑ ⨆ (Mono.eval ∘ Mono.pair c d)       := Domain.is_bound (Mono.eval ∘ Mono.pair c d) ..
 
 -- Exponentials
@@ -67,19 +69,19 @@ instance [Order α] [Order β] [Domain α] [Domain β] : Order (Cont α β) wher
   anti := fun p q ↦ Cont.ext (p ⇄! q)
 
 def Cont.const [Order α] [Order β] [Domain α] [Domain β] (b : β) : Cont α β := ⟨Mono.const b, fun {c} ↦ by
-  have p : (Mono.const b) ∘ c = Mono.const b := Mono.ext (funext fun _ ↦ rfl)
+  have p : (Mono.const b) ∘' c = Mono.const b := Mono.ext (funext fun _ ↦ rfl)
   rw [p, Domain.sup_of_const b]
   exact Order.refl
 ⟩
 
 def Chain.apply [Order α] [Order β] [Domain α] [Domain β] (c : Chain (Cont α β)) (a : α) : Chain β where
-  act := fun n ↦ (c $ n) $ a
-  act' := fun a_b ↦ (c $ a_b) _
+  act := fun n ↦ (c n) a
+  act' := fun a_b ↦ (c • a_b) _
 
 def chain_apply_monotone_in_a [Order α] [Order β] [Domain α] [Domain β] {x y : α} (c : Chain (Cont α β))
   (x_y : x ⊑ y) : c.apply x ⊑ c.apply y := by
   intro n
-  exact (c $ n) $ x_y
+  exact (c n) • x_y
 
 def cont_sup_mono [Order α] [Order β] [Domain α] [Domain β] (c : Chain (Cont α β)) : Mono α β
   := ⟨fun a ↦ ⨆ (c.apply a), by
@@ -115,17 +117,52 @@ instance [Order α] [Order β] [Domain α] [Domain β] : Domain (Cont α β) whe
 def Mono.from_cont [Order α] [Order β] [Domain α] [Domain β] : Mono (Cont α β) (Mono α β) :=
   ⟨Cont.fn, fun p a ↦ p a⟩
 
+def Cont.id' [Order α] [Domain α] : Cont α α
+  := ⟨⟨fun x ↦ x, fun x_y ↦ x_y⟩, ⋆⟩
+
+def Cont.comp {α : Type i} {β : Type j} {γ : Type k}
+  [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] : Cont (Cont β γ × Cont α β) (Cont α γ)
+  := ⟨⟨
+      fun h ↦ ⟨⟨fun x ↦ h.fst (h.snd x), fun x_y ↦ h.fst • h.snd • x_y⟩, by {
+        intro c
+        calc h.fst (h.snd (⨆ c))
+        _ ⊑ h.fst (⨆ (h.snd.fn ∘' c)) := (h.fst • h.snd.sub)
+        _ ⊑ (⨆ (h.fst.fn ∘' (h.snd.fn ∘' c))) := h.fst.sub
+      }⟩,
+      fun {h₀ h₁} h a ↦ (h₀.fst • h.right a) ⬝ (h.left (h₁.snd a))
+    ⟩,
+    fun {c} a ↦ by
+    calc ⨆ (c.fst.apply (⨆ (c.snd.apply a)))
+      _ ⊑ ⨆ (Mono.sup ∘ Mono.comp ∘ (Mono.pair (Mono.from_cont ∘ c.fst) (Mono.const (c.snd.apply a))))
+        := sup_is_mono (fun n ↦ (c.fst n).sub)
+      _ ⊑ ⨆ (Mono.eval ∘ Mono.pair (Mono.from_cont ∘ c.fst) (c.snd.apply a))
+        := diagonalize_eval _ _
+  ⟩
+
+def Cont.comp' [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] (f : Cont β γ) (g : Cont α β)
+  : Cont α γ
+  := Cont.comp.fn.act (f, g)
+
+infix:100 " ∘ " => Cont.comp'
+infixr:100 " ∘' " => Cont.comp'
+
+theorem Cont.pair_after [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] [Order δ] [Domain δ]
+  (f : Cont γ α) (g : Cont γ β) (h : Cont δ γ) : (f ∘' h).pair (g ∘' h) = (f.pair g) ∘' h := by
+  apply Cont.ext ∘ funext
+  intro x
+  rfl
+
 def eval_cont_mono {α : Type i} {β : Type j} [Order α] [Order β] [Domain α] [Domain β] : Mono (Cont α β × α) β :=
-   ⟨fun x ↦ x.fst $ x.snd, fun {x y} p ↦ (x.fst $ p.right) ⬝ (p.left $ y.snd)⟩
+   ⟨fun x ↦ x.fst x.snd, fun {x y} p ↦ (x.fst • p.right) ⬝ (p.left y.snd)⟩
 
 def Cont.eval {α : Type i} {β : Type j} [Order α] [Order β] [Domain α] [Domain β] : Cont (Cont α β × α) β := ⟨
   eval_cont_mono,
   by {
     intro c
-    calc (eval_cont_mono $ (⨆ c))
+    calc (eval_cont_mono (⨆ c))
       _ = ⨆ (c.fst.apply (⨆ c.snd)) := rfl
       _ ⊑ ⨆ (Mono.sup ∘ Mono.comp ∘ (Mono.pair (Mono.from_cont ∘ c.fst) (Mono.const c.snd)))
-                                    := sup_is_mono (fun n ↦ (c.fst $ n).sub)
+                                    := sup_is_mono (fun n ↦ (c.fst n).sub)
       _ ⊑ ⨆ (Mono.eval ∘ Mono.pair (Mono.from_cont ∘ c.fst) c.snd)
                                     := diagonalize_eval _ _
       _ = ⨆ (eval_cont_mono ∘ c)    := rfl
@@ -136,35 +173,35 @@ def Cont.curry {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [Do
   ⟨
     fun a ↦ ⟨
       ⟨
-        fun b ↦ f $ (a, b),
-        fun b' ↦ f $ ⟨⋆, b'⟩
+        fun b ↦ f (a, b),
+        fun b' ↦ f • ⟨⋆, b'⟩
       ⟩,
       by {
         intro c
-        calc f $ (a, ⨆ c)
-          _ ⊑ f $ (⨆ (Mono.const a), ⨆ c) := by rw [Domain.sup_of_const a]; exact ⋆
-          _ = f $ (⨆ (Mono.pair (Mono.const a) c)) := rfl
+        calc f (a, ⨆ c)
+          _ ⊑ f (⨆ (Mono.const a), ⨆ c) := by rw [Domain.sup_of_const a]; exact ⋆
+          _ = f (⨆ (Mono.pair (Mono.const a) c)) := rfl
           _ ⊑ ⨆ (f.fn ∘ Mono.pair (Mono.const a) c) := f.sub
       }
     ⟩,
-    fun a' b ↦ f $ ⟨a', ⋆⟩
+    fun a' b ↦ f • ⟨a', ⋆⟩
   ⟩,
   by {
     intro c b
-    calc f $ (⨆ c, b)
-      _ ⊑ f $ (⨆ c, ⨆ (Mono.const b)) := by rw [Domain.sup_of_const b]; exact ⋆
-      _ = f $ (⨆ (Mono.pair c (Mono.const b))) := rfl
+    calc f (⨆ c, b)
+      _ ⊑ f (⨆ c, ⨆ (Mono.const b)) := by rw [Domain.sup_of_const b]; exact ⋆
+      _ = f (⨆ (Mono.pair c (Mono.const b))) := rfl
       _ ⊑ ⨆ (f.fn ∘ Mono.pair c (Mono.const b)) := f.sub
   }
 ⟩
 
 def uncurry' {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] (f : Cont α (Cont β γ)) : Mono (α × β) γ := ⟨
-  fun ⟨a, b⟩ ↦ (f $ a) $ b,
+  fun ⟨a, b⟩ ↦ (f a) b,
   by {
     intro ⟨a₀, b₀⟩ ⟨a₁, b₁⟩ ⟨a', b'⟩
-    calc ((f $ a₀) $ b₀)
-      _ ⊑ ((f $ a₀) $ b₁) := (f $ a₀) $ b'
-      _ ⊑ ((f $ a₁) $ b₁) := (f $ a') b₁
+    calc ((f a₀) b₀)
+      _ ⊑ ((f a₀) b₁) := (f a₀) • b'
+      _ ⊑ ((f a₁) b₁) := (f • a') b₁
   }
 ⟩
 
@@ -172,9 +209,9 @@ def Cont.uncurry {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [
   uncurry' f,
   by {
     intro c
-    calc uncurry' f $ ⨆ c
-      _ = (f $ (⨆ c.fst)) $ (⨆ c.snd)       := rfl
-      _ ⊑ (⨆ (f.fn ∘ c.fst)) $ (⨆ c.snd)    := (f.sub) (⨆ c.snd)
+    calc uncurry' f (⨆ c)
+      _ = (f (⨆ c.fst)) (⨆ c.snd)           := rfl
+      _ ⊑ (⨆ (f.fn ∘ c.fst)) (⨆ c.snd)    := (f.sub) (⨆ c.snd)
       _ ⊑ ⨆ ((⨆ (f.fn ∘ c.fst)).fn ∘ c.snd) := (⨆ (f.fn ∘ c.fst)).sub
       _ ⊑ ⨆ (uncurry' f ∘ c) := by {
         -- TODO: Can this be nicely refactored into diagonalization?
@@ -182,49 +219,26 @@ def Cont.uncurry {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [
         intro i
         apply Domain.is_least
         intro j
-        calc Chain.apply (f.fn ∘ c.fst) (c.snd $ i) $ j
-          _ = ((f $ (c.fst $ j)) $ (c.snd $ i))
+        calc Chain.apply (f.fn ∘ c.fst) (c.snd i) j
+          _ = ((f (c.fst j)) (c.snd i))
               := rfl
-          _ ⊑ ((f $ (c.fst $ j)) $ (c.snd $ (max i j)))
-              := (f $ (c.fst $ j)).fn.act' (c.snd.act' (Nat.le_max_left ..))
-          _ ⊑ ((f $ (c.fst $ (max i j))) $ (c.snd $ (max i j)))
-              := ((f $ (c.fst $ (Nat.le_max_right ..)))) (c.snd $ (max i j))
+          _ ⊑ ((f (c.fst j)) (c.snd (max i j)))
+              := (f (c.fst j)).fn.act' (c.snd.act' (Nat.le_max_left ..))
+          _ ⊑ ((f (c.fst (max i j))) (c.snd (max i j)))
+              := ((f • (c.fst • (Nat.le_max_right ..)))) (c.snd (max i j))
           _ ⊑ ⨆ (uncurry' f ∘ c) := Domain.is_bound (uncurry' f ∘ c) ..
       }
   }
 ⟩
 
-def Cont.id [Order α] [Domain α] : Cont α α
-  := ⟨⟨fun x ↦ x, fun x_y ↦ x_y⟩, ⋆⟩
-
-def Cont.comp {α : Type i} {β : Type j} {γ : Type k}
-  [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] : Cont (Cont β γ × Cont α β) (Cont α γ)
-  := ⟨⟨
-      fun h ↦ ⟨⟨fun x ↦ h.fst $ h.snd $ x, fun x_y ↦ h.fst $ h.snd $ x_y⟩, (h.fst $ h.snd.sub) ⬝ h.fst.sub⟩,
-      fun {h₀ h₁} h a ↦ (h₀.fst $ h.right a) ⬝ (h.left (h₁.snd $ a))
-    ⟩,
-    fun {c} a ↦ by
-    calc ⨆ (c.fst.apply (⨆ (c.snd.apply a)))
-      _ ⊑ ⨆ (Mono.sup ∘ Mono.comp ∘ (Mono.pair (Mono.from_cont ∘ c.fst) (Mono.const (c.snd.apply a))))
-        := sup_is_mono (fun n ↦ (c.fst $ n).sub)
-      _ ⊑ ⨆ (Mono.eval ∘ Mono.pair (Mono.from_cont ∘ c.fst) (c.snd.apply a))
-        := diagonalize_eval _ _
-  ⟩
-
-def Cont.comp' [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] (f : Cont β γ) (g : Cont α β)
-  : Cont α γ
-  := Cont.comp.fn.act (f, g)
-
-infix:100 " ∘ " => Cont.comp'
-
 def Cont.iter [Order α] [Domain α] : Nat → Cont α α → Cont α α
-| 0 => fun _ ↦ Cont.id
+| 0 => fun _ ↦ Cont.id'
 | .succ n => fun f ↦ f ∘ iter n f
 
 def Cont.iterations [Order α] [Domain α] (f : Cont α α) : Chain α :=
   ⟨
-    fun n ↦ Cont.iter n f $ ⊥,
-    increasing_implies_monotone (fun n ↦ iter n f $ ⊥) (by
+    fun n ↦ Cont.iter n f ⊥,
+    increasing_implies_monotone (fun n ↦ iter n f ⊥) (by
       intro n
       induction n with
       | zero => exact Domain.is_bot
@@ -232,18 +246,18 @@ def Cont.iterations [Order α] [Domain α] (f : Cont α α) : Chain α :=
     )
   ⟩
 
-def is_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) := (f $ a) ⊑ a
+def is_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) := f a ⊑ a
 
-def fix [Order α] [Domain α] (f : Cont α α) := ⨆ f.iterations
+def Cont.fix [Order α] [Domain α] (f : Cont α α) := ⨆ f.iterations
 
 def fix_is_prefixed [Order α] [Domain α] (f : Cont α α) : is_prefixed f (⨆ f.iterations) := by
-  calc (f $ fix f)
+  calc (f (f.fix))
     _ ⊑ ⨆ (f.fn ∘ f.iterations)      := f.sub
     _ = ⨆ (f.iterations ∘ Mono.succ) := rfl
-    _ ⊑ fix f             := sup_succ
+    _ ⊑ f.fix                        := sup_succ
 
 def fix_is_least_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) (h : is_prefixed f a)
-  : fix f ⊑ a
+  : f.fix ⊑ a
   := by
   apply Domain.is_least
   intro n
@@ -251,36 +265,43 @@ def fix_is_least_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) (h : 
   | zero => exact Domain.is_bot
   | succ n Φ =>
     calc (f.iterations.act (n + 1))
-      _ ⊑ f $ a := f $ Φ
+      _ ⊑ f a := f • Φ
       _ ⊑ a     := h
 
+def Cont.fix_is_fixed [Order α] [Domain α] (f : Cont α α) : f (f.fix) = f.fix := by
+  apply Order.anti
+  apply fix_is_prefixed
+  apply fix_is_least_prefixed
+  apply f.fn.act'
+  apply fix_is_prefixed
+
 def Cont.fix_mono [Order α] [Domain α] : Mono (Cont α α) α := ⟨
-    fix,
+    Cont.fix,
     by
       intro f g f_g
       apply fix_is_least_prefixed
-      calc f $ (fix g)
-        _ ⊑ g $ (fix g) := f_g _
+      calc f (fix g)
+        _ ⊑ g (fix g) := f_g _
         _ ⊑ fix g       := fix_is_prefixed _
   ⟩
 
 -- Proposition 16
-def Cont.fix [Order α] [Domain α] : Cont (Cont α α) α := ⟨
+def Cont.fix' [Order α] [Domain α] : Cont (Cont α α) α := ⟨
     fix_mono,
     by
       intro f
       apply fix_is_least_prefixed
-      calc ⨆ f $ ⨆ (fix_mono ∘ f)
+      calc ⨆ f (⨆ (fix_mono ∘ f))
         _ = ⨆ (f.apply (⨆ (fix_mono ∘ f))) := rfl
         _ ⊑ ⨆ (Mono.sup ∘ Mono.comp ∘ Mono.pair (Mono.from_cont ∘ f) (Mono.const (fix_mono ∘ f))) := by {
           apply sup_is_mono
           intro n
-          exact (f $ n).sub
+          exact (f n).sub
         }
         _ ⊑ ⨆ (Mono.eval ∘ Mono.pair (Mono.from_cont ∘ f) (fix_mono ∘ f)) := diagonalize_eval _ _
         _ ⊑ ⨆ (fix_mono ∘ f) := by {
           apply sup_is_mono
           intro n
-          exact fix_is_prefixed (f $ n)
+          exact fix_is_prefixed (f n)
         }
   ⟩

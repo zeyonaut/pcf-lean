@@ -7,9 +7,10 @@ class Order (α) where
 instance [o : Order α] : Trans o.R o.R o.R where
   trans := o.trans
 
+infix:100 " ⬝ " => Trans.trans
+
 infix:100 " ⊑ " => Order.R
 notation:max "⋆" => Order.refl
-infix:100 " ⬝ " => Order.trans
 infix:100 " ⇄! " => Order.anti
 
 instance : Order Nat where
@@ -38,8 +39,10 @@ structure Mono (α) (β) [Order α] [Order β] where
   act : α → β
   act' : is_monotone act
 
-infixl:100 " $ " => Mono.act
-infixl:100 " $ " => Mono.act'
+instance [Order α] [Order β] : CoeFun (Mono α β) (fun _ => α → β) where
+  coe f := f.act
+
+infixl:100 " • " => Mono.act'
 
 @[ext] theorem Mono.ext [Order α] [Order β] {f g : Mono α β} (p : f.act = g.act) : f = g := by
   obtain ⟨f, _⟩ := f
@@ -63,6 +66,9 @@ instance [Order α] [Order β] : Order (Mono α β) where
 def Chain (α : Type i) [Order α] := Mono Nat α
 
 instance [Order α] : Order (Chain α) := inferInstanceAs (Order (Mono ..))
+
+instance [Order α] : CoeFun (Chain α) (fun _ => Nat → α) where
+  coe f := f.act
 
 class Domain (α) [Order α] where
   bot : α
@@ -90,9 +96,10 @@ def Mono.id [Order α] : Mono α α
 
 def Mono.comp' [Order α] [Order β]  [Order γ] (f : Mono β γ) (g : Mono α β) : Mono α γ where
   act := f.act ∘ g.act
-  act' := fun x_y ↦ f $ (g $ x_y)
+  act' := fun x_y ↦ f • (g • x_y)
 
 infixr:100 " ∘ " => Mono.comp'
+infixr:100 " ∘' " => Mono.comp'
 
 def Mono.succ : Mono Nat Nat := ⟨Nat.succ, Nat.succ_le_succ⟩
 
@@ -104,19 +111,19 @@ instance [Order α] [Order β] : Order (α × β) where
   anti := fun ⟨p₀, p₁⟩ ⟨q₀, q₁⟩ ↦ Prod.ext (p₀ ⇄! q₀) (p₁ ⇄! q₁)
 
 def Chain.fst [Order α] [Order β] (c : Chain (α × β)) : Chain α :=
-  ⟨fun n ↦ (c $ n).fst, fun p ↦ by exact (c $ p).left⟩
+  ⟨fun n ↦ (c n).fst, fun p ↦ by exact (c • p).left⟩
 
 def Chain.snd [Order α] [Order β] (c : Chain (α × β)) : Chain β :=
-  ⟨fun n ↦ (c $ n).snd, fun p ↦ by exact (c $ p).right⟩
+  ⟨fun n ↦ (c n).snd, fun p ↦ by exact (c • p).right⟩
 
 def Mono.pair [Order α] [Order β] [Order γ]
   (f : Mono γ α) (g : Mono γ β) : Mono γ (α × β) :=
-    ⟨fun c ↦ ⟨f $ c, g $ c⟩, fun p ↦ ⟨f $ p, g $ p⟩⟩
+    ⟨fun c ↦ ⟨f c, g c⟩, fun p ↦ ⟨f • p, g • p⟩⟩
 
 def Mono.comp {α : Type i} {β : Type j} {γ : Type k} [Order α] [Order β] [Order γ] : Mono (Mono β γ × Mono α β) (Mono α γ) := ⟨
-      fun h ↦ ⟨fun x ↦ h.fst $ (h.snd $ x), fun x_y ↦ h.fst $ (h.snd $ x_y)⟩,
-      fun {h₀ h₁} h a ↦ (h₀.fst $ h.right a) ⬝ (h.left (h₁.snd $ a))
+      fun h ↦ ⟨fun x ↦ h.fst (h.snd x), fun x_y ↦ h.fst • (h.snd • x_y)⟩,
+      fun {h₀ h₁} h a ↦ (h₀.fst • h.right a) ⬝ (h.left (h₁.snd a))
     ⟩
 
 def Mono.eval {α : Type i} {β : Type j} [Order α] [Order β] : Mono (Mono α β × α) β :=
-  ⟨fun x ↦ x.fst $ x.snd, fun {x y} p ↦ (x.fst $ p.right) ⬝ (p.left $ y.snd)⟩
+  ⟨fun x ↦ x.fst x.snd, fun {x y} p ↦ (x.fst • p.right) ⬝ (p.left y.snd)⟩

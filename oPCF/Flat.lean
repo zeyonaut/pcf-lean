@@ -137,10 +137,24 @@ def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := ⟨
       rw [p₀]
       have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
       have p₂ : ⨆ (Mono.flat f ∘ c) = .some (f a) := flat_sup_some.mp ⟨n, by
-        calc lift_flat f (c $ n)
+        calc lift_flat f (c n)
           _ = lift_flat f (Flat.some a) := ap _ p₁
           _ = Flat.some (f a)           := rfl
       ⟩
       exact p₂.symm
     }
   ⟩
+
+theorem Cont.flat_comp (f : β → γ) (g : α → β) : Cont.flat (f ∘ g) = Cont.flat f ∘' Cont.flat g := by
+  apply Cont.ext ∘ funext
+  intro a
+  cases a with
+  | none => rfl
+  | some => rfl
+
+theorem Cont.flat_id : Cont.flat (id) = (Cont.id' : Cont (Flat α) (Flat α) ) := by
+  apply Cont.ext ∘ funext
+  intro a
+  cases a with
+  | none => rfl
+  | some => rfl
