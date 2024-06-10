@@ -1,5 +1,6 @@
 import «oPCF».Order
 
+-- Definition 8 (Domain)
 class Domain (α) [Order α] where
   bot : α
   sup : (c : Chain α) → α
@@ -29,6 +30,7 @@ def sup_succ [Order α] [Domain α] {c : Chain α} : ⨆ (c ∘ Mono.succ) ⊑ �
 def continuous [Order α] [Order β] [Domain α] [Domain β] (f : Mono α β) :=
   ∀ {c : Chain α}, f.act (⨆ c) ⊑ ⨆ (f ∘ c)
 
+-- Definition 9 (Continuity)
 structure Cont (α) (β) [Order α] [Order β] [Domain α] [Domain β] where
   fn : Mono α β
   sub : ∀ {c : Chain α}, fn.act (⨆ c) ⊑ ⨆ (fn ∘ c)
@@ -44,9 +46,7 @@ notation:101 f " • " x:100 => Mono.act' (Cont.fn f) x
   have p : f = g := Mono.ext p
   simp [p]
 
--- Products
-
--- Proposition 8
+-- Proposition 8 (Products preserve lubs and least element)
 instance [Order α] [Order β] [Domain α] [Domain β] : Domain (α × β) where
   bot := ⟨⊥, ⊥⟩
   sup := fun c ↦ ⟨⨆ c.fst, ⨆ c.snd⟩
@@ -54,7 +54,7 @@ instance [Order α] [Order β] [Domain α] [Domain β] : Domain (α × β) where
   is_bound := fun c n ↦ ⟨Domain.is_bound c.fst n, Domain.is_bound c.snd n⟩
   is_least := fun c _ p ↦ ⟨Domain.is_least c.fst p.left, Domain.is_least c.snd p.right⟩
 
--- Proposition 9
+-- Proposition 9 (Projections and pairing)
 def Cont.fst [Order α] [Order β] [Domain α] [Domain β] : Cont (α × β) α :=
   ⟨⟨Prod.fst, And.left⟩, sup_is_mono (fun _ ↦ ⋆)⟩
 
@@ -104,6 +104,7 @@ def chain_apply_monotone_in_a [Order α] [Order β] [Domain α] [Domain β] {x y
   intro n
   exact (c n) • x_y
 
+-- Proposition 2 (Monotonicity of lubs)
 def cont_sup_mono [Order α] [Order β] [Domain α] [Domain β] (c : Chain (Cont α β)) : Mono α β
   := ⟨fun a ↦ ⨆ (c.apply a), by
       intro p q p_q
@@ -141,6 +142,7 @@ def Mono.from_cont [Order α] [Order β] [Domain α] [Domain β] : Mono (Cont α
 def Cont.id' [Order α] [Domain α] : Cont α α
   := ⟨⟨fun x ↦ x, fun x_y ↦ x_y⟩, ⋆⟩
 
+-- Proposition 15 (Continuity of composition)
 def Cont.comp {α : Type i} {β : Type j} {γ : Type k}
   [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] : Cont (Cont β γ × Cont α β) (Cont α γ)
   := ⟨⟨
@@ -176,6 +178,7 @@ theorem Cont.pair_after [Order α] [Domain α] [Order β] [Domain β] [Order γ]
 def eval_cont_mono {α : Type i} {β : Type j} [Order α] [Order β] [Domain α] [Domain β] : Mono (Cont α β × α) β :=
    ⟨fun x ↦ x.fst x.snd, fun {x y} p ↦ (x.fst • p.right) ⬝ (p.left y.snd)⟩
 
+-- Proposition 13 (Evaluation)
 def Cont.eval {α : Type i} {β : Type j} [Order α] [Order β] [Domain α] [Domain β] : Cont (Cont α β × α) β := ⟨
   eval_cont_mono,
   by {
@@ -190,6 +193,7 @@ def Cont.eval {α : Type i} {β : Type j} [Order α] [Order β] [Domain α] [Dom
   }
 ⟩
 
+-- Proposition 14 (Currying)
 def Cont.curry {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] (f : Cont (α × β) γ) : Cont α (Cont β γ) := ⟨
   ⟨
     fun a ↦ ⟨
@@ -269,6 +273,7 @@ def Cont.iterations [Order α] [Domain α] (f : Cont α α) : Chain α :=
 
 def is_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) := f a ⊑ a
 
+-- Proposition 16 (Continuity of the fixed point operator)
 def Cont.fix [Order α] [Domain α] (f : Cont α α) := ⨆ f.iterations
 
 def fix_is_prefixed [Order α] [Domain α] (f : Cont α α) : is_prefixed f (⨆ f.iterations) := by
@@ -289,6 +294,7 @@ def fix_is_least_prefixed [Order α] [Domain α] (f : Cont α α) (a : α) (h : 
       _ ⊑ f a := f • Φ
       _ ⊑ a     := h
 
+-- Theorem 6 (Kleene’s fixed point theorem)
 def Cont.fix_is_fixed [Order α] [Domain α] (f : Cont α α) : f (f.fix) = f.fix := by
   apply Order.anti
   apply fix_is_prefixed

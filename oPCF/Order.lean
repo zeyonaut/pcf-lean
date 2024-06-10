@@ -1,5 +1,6 @@
 import «oPCF».Utility
 
+-- Definition 1 (Partially ordered set)
 class Order (α) where
   R : α → α → Prop
   refl {x} : R x x
@@ -27,6 +28,7 @@ instance [Order α] [Order β] : Order (α → β) where
     intro f g p q
     exact funext fun x ↦ p x ⇄! q x
 
+-- Definition 2 (Monotone function)
 def is_monotone [Order α] [Order β] (f : α → β) := ∀ {x y : α}, x ⊑ y → f x ⊑ f y
 
 def increasing_implies_monotone [Order α] (f : Nat → α) : (∀ n, f n ⊑ f n.succ) → is_monotone f := by
@@ -82,7 +84,7 @@ infixr:100 " ∘' " => Mono.comp'
 
 def Mono.succ : Mono Nat Nat := ⟨Nat.succ, Nat.succ_le_succ⟩
 
--- Definition 13
+-- Definition 13 (Binary product of two orders)
 instance [Order α] [Order β] : Order (α × β) where
   R := fun ⟨a₀, b₀⟩ ⟨a₁, b₁⟩ ↦ a₀ ⊑ a₁ ∧ b₀ ⊑ b₁
   refl := ⟨⋆, ⋆⟩

@@ -130,10 +130,14 @@ noncomputable def denotation_subst (σ : Subst Γ Δ) : Cont (⟦Δ cx⟧) (⟦�
 
 notation:100 "⟦" σ "⟧" => denotation_subst σ
 
-def Tm.is_value.ground_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
-  | .true, .true => ⟨.true, rfl⟩
-  | .false, .false => ⟨.false, rfl⟩
+theorem deno_ground_bool : ∀ {n}, (⟦.from_bool n⟧) ρ = (.some n)
+  | .false | .true => rfl
 
-def Tm.is_value.ground_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
-  | .zero, .zero => ⟨.zero, rfl⟩
-  | .succ _, .succ v' => let Φ := ground_nat v'; ⟨Φ.fst.succ, ap (Tm.succ) Φ.snd⟩
+theorem deno_ground_nat : (⟦.from_nat n⟧) ρ = (.some n) := by
+  induction n with
+  | zero => rfl
+  | succ n Φ =>
+    calc (⟦.from_nat (n.succ)⟧) ρ
+      _ = Cont.flat (.succ) ((⟦.from_nat n⟧) ρ) := rfl
+      _ = Cont.flat (.succ) (.some n)           := by rw [Φ]
+      _ = .some (n.succ)                        := rfl

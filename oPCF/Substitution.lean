@@ -100,18 +100,17 @@ theorem ren_trans_eq {t : Γ₀ ⊢ τ}
 -- Definition 28 (Parallel closed substitution)
 def Subst Γ Δ := ∀ τ, Var Γ τ → Tm Δ τ
 
--- TODO: Remove unused variants
 def Subst.keep (σ : Subst Γ Δ) (τ : Ty) : Subst (Γ ∷ τ) (Δ ∷ τ) :=
   fun _ x => match x with
   | .z => .var τ .z
   | .s τ x => (σ τ x).ren .s
 
-def Subst.keeps' (σ : Subst Γ₀ Γ₁) : (Δ : Cx) → Subst (Γ₀.append Δ) (Γ₁.append Δ)
+def Subst.keeps (σ : Subst Γ₀ Γ₁) : (Δ : Cx) → Subst (Γ₀.append Δ) (Γ₁.append Δ)
   | .nil => σ
-  | .cons Δ τ => (σ.keeps' Δ).keep τ
+  | .cons Δ τ => (σ.keeps Δ).keep τ
 
 theorem Subst.keeps_keep_eq_keep (σ : Subst Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
-  : (σ.keeps' Δ).keep τ = σ.keeps' (Δ ∷ τ) := by
+  : (σ.keeps Δ).keep τ = σ.keeps (Δ ∷ τ) := by
   funext υ x
   rfl
 
@@ -193,81 +192,81 @@ def keep_tr_cx
 def sub_ren_exchange {t : Γ ⊢ τ} : ∀ {Δ} Δ' {Γ₀ Γ₁ : Cx} (h : Γ = Γ₀.append Δ') {σ : Subst Γ₀ Γ₁} {τ'}
     (r : ∀ {Γ}, Ren (Γ.append (Δ.append Δ')) ((Γ ∷ τ').append (Δ.append Δ'))),
     (∀ ν (x : Var Γ ν),
-      (σ.keeps'          (Δ.append Δ') ν      (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
-    = (σ.keep τ').keeps' (Δ.append Δ') ν (r ν (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))))
-  → ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps' (Δ.append Δ'))).ren r
-    = ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps' (Δ.append Δ'))
+      (σ.keeps          (Δ.append Δ') ν      (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
+    = (σ.keep τ').keeps (Δ.append Δ') ν (r ν (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))))
+  → ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps (Δ.append Δ'))).ren r
+    = ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps (Δ.append Δ'))
   := by
   induction t with
   | var υ x =>
     intro Δ Δ' Γ₀ Γ₁ h σ τ' r lem
-    calc (σ.keeps' (Δ.append Δ') υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
-      _ = (σ.keep τ').keeps' (Δ.append Δ') υ (r υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')))
+    calc (σ.keeps (Δ.append Δ') υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
+      _ = (σ.keep τ').keeps (Δ.append Δ') υ (r υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')))
       := by rw [lem]
   | @fn Γ' υ τ e Φ =>
     -- WARNING: Only suffering awaits.
     intro Δ Δ' Γ₀ Γ₁ h σ τ' r lem
     have lemₑ : ∀ (ν : Ty) (x : Var (Γ' ∷ υ) ν),
-      (σ.keeps'          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep =
-      (σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))) := by {
+      (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep =
+      (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))) := by {
         intro ν x
         cases x with
         | z =>
           rw [Var.tr_cx_z]
-          show (σ.keeps' (Δ.append (Δ' ∷ υ)) υ (Var.z.tr_cx _)).ren r.keep
-            = (σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)) υ (r.keep υ (Var.z.tr_cx _))
+          show (σ.keeps (Δ.append (Δ' ∷ υ)) υ (Var.z.tr_cx _)).ren r.keep
+            = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) υ (r.keep υ (Var.z.tr_cx _))
           rw [Var.tr_cx_z]
           rfl
         | s ν x =>
           -- First, we hide the casts under the constructor, allowing computations to proceed.
-          show (σ.keeps'          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep
-             = (σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))))
+          show (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep
+             = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))))
           rw [Var.tr_cx_s h]
-          show (σ.keeps'          (Δ.append (Δ' ∷ υ)) ν           ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep
-             = (σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)) ν (r.keep ν ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ)))
+          show (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep
+             = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ)))
           rw [Var.tr_cx_s (Cx.append_append_eq Γ₀ Δ Δ')]
           let y := (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))
           let lem_x :
-            (σ.keeps' (Δ.append Δ') ν y).ren r = (σ.keep τ').keeps' (Δ.append Δ') ν (r ν y)
+            (σ.keeps (Δ.append Δ') ν y).ren r = (σ.keep τ').keeps (Δ.append Δ') ν (r ν y)
             := lem ν x
           -- To understand what's going on below, it's helpful to draw the components of the equation as a
           -- diagram of context morphisms. The proof then follows by dissecting the diagram and proving its -- component equalities.
-          calc   (σ.keeps' (Δ.append (Δ' ∷ υ)) ν (Var.s ν y)).ren r.keep
-             _ = ((σ.keeps' (Δ.append Δ') ν y).ren Ren.weak).ren r.keep
+          calc   (σ.keeps (Δ.append (Δ' ∷ υ)) ν (Var.s ν y)).ren r.keep
+             _ = ((σ.keeps (Δ.append Δ') ν y).ren Ren.weak).ren r.keep
               := rfl
-             _ = (σ.keeps' (Δ.append Δ') ν y).ren (Ren.weak ⬝ r.keep)
+             _ = (σ.keeps (Δ.append Δ') ν y).ren (Ren.weak ⬝ r.keep)
               := by rw [ren_trans_eq]
-             _ = (σ.keeps' (Δ.append Δ') ν y).ren (r ⬝ Ren.weak)
+             _ = (σ.keeps (Δ.append Δ') ν y).ren (r ⬝ Ren.weak)
               := by rw [Ren.weak_after_eq]
-             _ = ((σ.keeps' (Δ.append Δ') ν y).ren r).ren Ren.weak
+             _ = ((σ.keeps (Δ.append Δ') ν y).ren r).ren Ren.weak
               := by rw [ren_trans_eq]
-             _ = ((σ.keep τ').keeps' (Δ.append Δ') ν (r ν y)).ren Ren.weak
+             _ = ((σ.keep τ').keeps (Δ.append Δ') ν (r ν y)).ren Ren.weak
               := by rw [lem_x]
-             _ = (σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)) ν (r.keep ν (Var.s ν y))
+             _ = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (Var.s ν y))
               := rfl
       }
     -- TODO: Clean this up.
-    calc (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps' (Δ.append Δ'))).ren r
-    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren ((Ren.weaks Δ).keeps Δ').keep).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).sub ((σ.keeps' (Δ.append Δ')).keep υ)).ren r.keep).fn
+    calc (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps (Δ.append Δ'))).ren r
+    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren ((Ren.weaks Δ).keeps Δ').keep).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
       := rfl
-    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren ((Ren.weaks Δ).keeps Δ').keep).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).sub ((σ.keeps' (Δ.append Δ')).keep υ)).ren r.keep).fn
+    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren ((Ren.weaks Δ).keeps Δ').keep).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
       := by rw [keep_tr_cx, keep_tr_cx]
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub ((σ.keeps' (Δ.append Δ')).keep υ)).ren r.keep).fn
+    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
       := rfl
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps' (Δ.append Δ' ∷ υ))).ren r.keep).fn
+    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps (Δ.append Δ' ∷ υ))).ren r.keep).fn
       := by rw [Subst.keeps_keep_eq_keep]
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps' (Δ.append (Δ' ∷ υ)))).ren r.keep).fn
+    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps (Δ.append (Δ' ∷ υ)))).ren r.keep).fn
       := rfl
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).ren r.keep).sub ((σ.keep τ').keeps' (Δ.append (Δ' ∷ υ)))).fn
+    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).ren r.keep).sub ((σ.keep τ').keeps (Δ.append (Δ' ∷ υ)))).fn
       := by {
         congr
         apply Φ (Δ' ∷ υ) (cx_eq_cons h υ) r.keep lemₑ
       }
-    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep).sub (((σ.keep τ').keeps' (Δ.append Δ')).keep υ)).fn
+    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep).sub (((σ.keep τ').keeps (Δ.append Δ')).keep υ)).fn
       := rfl
-    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r.keep).sub (((σ.keep τ').keeps' (Δ.append Δ')).keep υ)).fn
+    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r.keep).sub (((σ.keep τ').keeps (Δ.append Δ')).keep υ)).fn
       := by rw [keep_tr_cx, keep_tr_cx]
-    _ = (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps' (Δ.append Δ'))
+    _ = (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps (Δ.append Δ'))
       := rfl
   | true | false | zero => intros; rfl
   | succ e Φ | pred e Φ | zero? e Φ | fix e Φ =>
@@ -282,8 +281,8 @@ def sub_ren_exchange {t : Γ ⊢ τ} : ∀ {Δ} Δ' {Γ₀ Γ₁ : Cx} (h : Γ =
 
 def sub_weak_exchange {t : Γ₀ ⊢ τ} {σ : Subst Γ₀ Γ₁}  : (t.sub σ).ren .s = (t.ren .s).sub (σ.keep υ) := by
     have p
-      : (((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).sub (σ.keeps' (Cx.nil.append Cx.nil))).ren .s)
-      = ((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).ren .s).sub ((σ.keep υ).keeps' (Cx.nil.append Cx.nil))
+      : (((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).sub (σ.keeps (Cx.nil.append Cx.nil))).ren .s)
+      = ((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).ren .s).sub ((σ.keep υ).keeps (Cx.nil.append Cx.nil))
       := @sub_ren_exchange Γ₀ τ t Cx.nil Cx.nil Γ₀ Γ₁ rfl σ υ .s (fun ν x ↦ rfl)
     rw [Tm.tr_cx_rfl, Tm.tr_cx_rfl] at p
     change ((t.ren Ren.id').sub σ).ren .s = ((t.ren Ren.id').ren .s).sub (σ.keep υ) at p

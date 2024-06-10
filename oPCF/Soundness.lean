@@ -1,18 +1,6 @@
 import «oPCF».Denotation
 import «oPCF».Operation
 
-theorem eval_ground_bool : ∀ {n}, (⟦.from_bool n⟧) ρ = (.some n)
-  | .false | .true => rfl
-
-theorem eval_ground_nat : (⟦.from_nat n⟧) ρ = (.some n) := by
-  induction n with
-  | zero => rfl
-  | succ n Φ =>
-    calc (⟦.from_nat (n.succ)⟧) ρ
-      _ = Cont.flat (.succ) ((⟦.from_nat n⟧) ρ) := rfl
-      _ = Cont.flat (.succ) (.some n)           := by rw [Φ]
-      _ = .some (n.succ)                        := rfl
-
 theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r⟧ = (⟦e⟧) ∘' (⟦r⟧) := by
   induction e with
   | fn e Φ =>
@@ -157,7 +145,7 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = Cont.flat (Nat.zero?) ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦v⟧) ρ)) := rfl
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦.from_nat n⟧) ρ)) := by rw [vn]
-      _ = Cont.flat (Nat.zero?) (Cont.flat .succ (.some n)) := by rw [eval_ground_nat]
+      _ = Cont.flat (Nat.zero?) (Cont.flat .succ (.some n)) := by rw [deno_ground_nat]
       _ = (⟦.false⟧) ρ := rfl
   | @cond_true _ s t f tv _ _ se te =>
     apply Cont.ext ∘ funext

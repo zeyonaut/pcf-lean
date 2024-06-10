@@ -18,6 +18,7 @@ inductive Eval : (.nil ⊢ τ) → (.nil ⊢ τ) → Type
 
 infixl:75 " ⇓ " => Eval
 
+-- Proposition 23 (Determinism)
 theorem determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
   intro h₀ h₁
   induction h₀ with

@@ -1,7 +1,6 @@
 import «oPCF».Domain
 
--- Flat domains.
-
+-- Definition 12 (Flat domain)
 inductive Flat (α : Type) : Type where
   | none : Flat α
   | some : α → Flat α
@@ -103,7 +102,7 @@ noncomputable instance : Domain (Flat α) where
       rw [←u.choose_spec]
       exact h
 
--- Proposition 7
+-- Proposition 7 (Flat domain lifting)
 private def lift_flat (f : α → β) : Flat α → Flat β
 | .none => .none
 | .some x => .some (f x)
@@ -125,10 +124,6 @@ theorem flat_lift_converse {f : α → β} {a : Flat α} (p : lift_flat f a ≠ 
   rw [q] at p
   exact p rfl
 
-def ap (f : A → B) {x y : A} (p : x = y) : f x = f y :=
-  match p with
-  | Eq.refl x => Eq.refl (f x)
-
 def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := ⟨
     Mono.flat f,
     by {
@@ -138,7 +133,7 @@ def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := ⟨
       have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
       have p₂ : ⨆ (Mono.flat f ∘ c) = .some (f a) := flat_sup_some.mp ⟨n, by
         calc lift_flat f (c n)
-          _ = lift_flat f (Flat.some a) := ap _ p₁
+          _ = lift_flat f (Flat.some a) := congrArg _ p₁
           _ = Flat.some (f a)           := rfl
       ⟩
       exact p₂.symm

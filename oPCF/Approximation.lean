@@ -62,7 +62,7 @@ noncomputable def same_eval_same_approx
 
 
 -- Theorem 29 (Fundamental property of formal approximation)
-noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : Subst Γ .nil} {t : Γ ⊢ τ}
+noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : Subst Γ .nil} (t : Γ ⊢ τ)
   : (ρ ◃ σ) → (⟦t⟧) ρ ◃ t.sub σ := by
   induction t with
   | var τ x =>
@@ -173,3 +173,22 @@ noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : S
         _ ⇓ v := eσu_v
     }
     exact same_eval_same_approx same_eval tρd_tσu
+
+-- Theorem 30 (Adequacy)
+noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.is_ground → v.is_value → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
+  intro τ_is_ground v_is_value deno_t_v
+  cases τ_is_ground with
+  | bool =>
+    have ⟨n, v_n⟩ := v_is_value.ground_bool
+    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    rw [deno_t_v, v_n, deno_ground_bool, sub_id_eq] at lem
+    rw [v_n]
+    exact lem n rfl
+  | nat =>
+    have ⟨n, v_n⟩ := v_is_value.ground_nat
+    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    rw [deno_t_v, v_n, deno_ground_nat, sub_id_eq] at lem
+    rw [v_n]
+    exact lem n rfl

@@ -7,6 +7,10 @@ inductive Ty
 
 infixr:100 " ⇒ " => Ty.pow
 
+inductive Ty.is_ground : Ty → Type
+  | bool : bool.is_ground
+  | nat : nat.is_ground
+
 inductive Cx
   | nil
   | cons : Cx -> Ty -> Cx
@@ -53,6 +57,14 @@ inductive Tm.is_value : (Γ ⊢ τ) → Type
   | zero : zero.is_value
   | succ {v : Tm ..} : v.is_value → v.succ.is_value
   | fn {e : Tm ..} : e.fn.is_value
+
+def Tm.is_value.ground_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
+  | .true, .true => ⟨.true, rfl⟩
+  | .false, .false => ⟨.false, rfl⟩
+
+def Tm.is_value.ground_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
+  | .zero, .zero => ⟨.zero, rfl⟩
+  | .succ _, .succ v' => let Φ := ground_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩
 
 def Cx.append (Γ : Cx) : Cx → Cx
   | .nil => Γ
