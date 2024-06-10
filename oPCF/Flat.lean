@@ -149,12 +149,10 @@ theorem Cont.flat_comp (f : β → γ) (g : α → β) : Cont.flat (f ∘ g) = C
   apply Cont.ext ∘ funext
   intro a
   cases a with
-  | none => rfl
-  | some => rfl
+  | none | some => rfl
 
 theorem Cont.flat_id : Cont.flat (id) = (Cont.id' : Cont (Flat α) (Flat α) ) := by
   apply Cont.ext ∘ funext
   intro a
   cases a with
-  | none => rfl
-  | some => rfl
+  | none | some => rfl

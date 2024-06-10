@@ -1,5 +1,26 @@
 import «oPCF».Order
 
+class Domain (α) [Order α] where
+  bot : α
+  sup : (c : Chain α) → α
+  is_bot {x} : bot ⊑ x
+  is_bound (c) (n): c.act n ⊑ sup c
+  is_least (c) {d} : ({n : _} → c.act n ⊑ d) → sup c ⊑ d
+
+notation:max "⊥" => Domain.bot
+notation:max "⨆" => Domain.sup
+
+def Domain.sup_of_const [Order α] [Domain α] (a : α) : ⨆ (Mono.const a) = a :=
+  (by exact Domain.is_least (Mono.const a) ⋆) ⇄! (Domain.is_bound (Mono.const a) 0)
+
+def sup_is_mono [Order α] [Domain α] {c d : Chain α} (p : c ⊑ d) : ⨆ c ⊑ ⨆ d := by
+  apply Domain.is_least c
+  intro n
+  exact p n ⬝ Domain.is_bound d n
+
+def Mono.sup [Order α] [Domain α] : Mono (Chain α) α :=
+  ⟨⨆, sup_is_mono⟩
+
 def sup_succ [Order α] [Domain α] {c : Chain α} : ⨆ (c ∘ Mono.succ) ⊑ ⨆ c := by
   apply Domain.is_least
   intro n
@@ -305,3 +326,13 @@ def Cont.fix' [Order α] [Domain α] : Cont (Cont α α) α := ⟨
           exact fix_is_prefixed (f n)
         }
   ⟩
+
+-- Theorem 17 (Scott induction)
+def scott [Order D] [Domain D] {φ : D → Sort u} {f : Cont D D}
+  : φ ⊥ → (∀ {c}, (∀ n, φ (c n)) → φ (⨆ c)) → (∀ {d}, φ d → φ (f d)) → φ (f.fix) := by
+  intro closed_0 closed_chain closed_f
+  apply closed_chain
+  intro n
+  induction n with
+  | zero => exact closed_0
+  | succ n Φ => exact closed_f Φ

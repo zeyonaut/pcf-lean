@@ -1,17 +1,19 @@
-import «oPCF».Syntax
+import «oPCF».Substitution
 
+-- NOTE: Case pred_zero is not in the lecture notes, but appears to be required for the fundamental property of formal approximation to hold?
 inductive Eval : (.nil ⊢ τ) → (.nil ⊢ τ) → Type
   | true : Eval .true .true
   | false : Eval .false .false
   | zero : Eval .zero .zero
   | succ : Eval t v → Eval (t.succ) (v.succ)
   | fn : Eval (.fn e) (e.fn)
-  | pred : Tm.is_value v → Eval t (v.succ) → Eval (.pred t) (v)
+  | pred_zero : Eval t .zero → Eval t.pred .zero
+  | pred_succ : Tm.is_value v → Eval t (v.succ) → Eval (t.pred) (v)
   | zero?_zero : Eval t (.zero) → Eval (t.zero?) .true
   | zero?_succ : Tm.is_value v → Eval t (v.succ) → Eval (t.zero?) .false
   | cond_true {t ct cf vt} : Eval t (.true) → Eval ct vt → Eval (t.cond ct cf) vt
   | cond_false {t ct cf vf} : Eval t (.false) → Eval cf vf → Eval (t.cond ct cf) vf
-  | app {e : Tm ..} : Eval f (e.fn) → Eval (e.sub (sb1 u)) v → Eval (f.app u) v
+  | app {e : Tm ..} : Eval f (e.fn) → Eval (e.sub (Subst.inst u)) v → Eval (f.app u) v
   | fix {f : Tm ..} : Eval (f.app f.fix) v → Eval (f.fix) v
 
 infixl:75 " ⇓ " => Eval
@@ -19,13 +21,7 @@ infixl:75 " ⇓ " => Eval
 theorem determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
   intro h₀ h₁
   induction h₀ with
-  | true =>
-    cases h₁
-    rfl
-  | false =>
-    cases h₁
-    rfl
-  | zero =>
+  | true | false | zero | fn =>
     cases h₁
     rfl
   | succ _ Φ =>
@@ -33,13 +29,20 @@ theorem determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
     case _ _ x =>
     congr
     exact Φ x
-  | fn =>
-    cases h₁
-    rfl
-  | pred _ _ Φ =>
-    cases h₁
-    case _ _ x =>
-    injection Φ x
+  | pred_zero _ Φ =>
+    cases h₁ with
+    | pred_zero => rfl
+    | pred_succ v_value t_v_succ =>
+      cases v_value with
+      | zero => rfl
+      | succ => exfalso; injection Φ t_v_succ
+  | pred_succ v_value _ Φ =>
+    cases h₁ with
+    | pred_zero t_0 =>
+      cases v_value with
+      | zero => rfl
+      | succ => exfalso; injection Φ t_0
+    | pred_succ _ x => injection Φ x
   | zero?_zero _ Φ =>
     cases h₁ with
     | zero?_zero => rfl
@@ -64,5 +67,5 @@ theorem determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
     exact Φ₁ x₁
   | fix _ Φ =>
     cases h₁
-    case _ x₀ =>
+    case fix x₀ =>
     exact Φ x₀

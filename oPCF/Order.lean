@@ -1,3 +1,5 @@
+import «oPCF».Utility
+
 class Order (α) where
   R : α → α → Prop
   refl {x} : R x x
@@ -6,8 +8,6 @@ class Order (α) where
 
 instance [o : Order α] : Trans o.R o.R o.R where
   trans := o.trans
-
-infix:100 " ⬝ " => Trans.trans
 
 infix:100 " ⊑ " => Order.R
 notation:max "⋆" => Order.refl
@@ -69,27 +69,6 @@ instance [Order α] : Order (Chain α) := inferInstanceAs (Order (Mono ..))
 
 instance [Order α] : CoeFun (Chain α) (fun _ => Nat → α) where
   coe f := f.act
-
-class Domain (α) [Order α] where
-  bot : α
-  sup : (c : Chain α) → α
-  is_bot {x} : bot ⊑ x
-  is_bound (c) (n): c.act n ⊑ sup c
-  is_least (c) {d} : ({n : _} → c.act n ⊑ d) → sup c ⊑ d
-
-notation:max "⊥" => Domain.bot
-notation:max "⨆" => Domain.sup
-
-def Domain.sup_of_const [Order α] [Domain α] (a : α) : ⨆ (Mono.const a) = a :=
-  (by exact Domain.is_least (Mono.const a) ⋆) ⇄! (Domain.is_bound (Mono.const a) 0)
-
-def sup_is_mono [Order α] [Domain α] {c d : Chain α} (p : c ⊑ d) : ⨆ c ⊑ ⨆ d := by
-  apply Domain.is_least c
-  intro n
-  exact p n ⬝ Domain.is_bound d n
-
-def Mono.sup [Order α] [Domain α] : Mono (Chain α) α :=
-  ⟨⨆, sup_is_mono⟩
 
 def Mono.id [Order α] : Mono α α
   := ⟨fun x ↦ x, fun x_y ↦ x_y⟩
