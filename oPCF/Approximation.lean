@@ -162,7 +162,7 @@ noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : S
       intro v eσu_v
       apply Eval.app Eval.fn
       calc (e.sub (σ.keep _)).sub (Subst.inst u)
-        _ = e.sub (σ.keep _ ⬝ Subst.inst u) := by rw [sub_trans_eq]
+        _ = e.sub (σ.keep _ ⬝ Subst.inst u) := by rw [Tm.sub_comp_eq]
         _ = e.sub (σ.push u) := by rw [sub_push_eq_keep_inst]
         _ ⇓ v := eσu_v
     }
@@ -176,13 +176,13 @@ noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.is_ground → v.is_value �
     have ⟨n, v_n⟩ := v_is_value.ground_bool
     have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
     have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
-    rw [deno_t_v, v_n, deno_ground_bool, sub_id_eq] at lem
+    rw [deno_t_v, v_n, deno_ground_bool, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
   | nat =>
     have ⟨n, v_n⟩ := v_is_value.ground_nat
     have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
     have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
-    rw [deno_t_v, v_n, deno_ground_nat, sub_id_eq] at lem
+    rw [deno_t_v, v_n, deno_ground_nat, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl

@@ -1,44 +1,59 @@
 import «oPCF».Syntax
 
-def Ren Γ Δ := ∀ τ, Var Γ τ → Var Δ τ
+/-
+We define the action of substitutions on the syntax of PCF in terms of renamings, which take
+variables in one context to variables in another.
+-/
 
-def Ren.trans (r₀₁ : Ren Γ₀ Γ₁) (r₁₂ : Ren Γ₁ Γ₂) : Ren Γ₀ Γ₂ :=
-  fun τ x => r₁₂ τ (r₀₁ τ x)
+def Ren Γ Δ := ∀ τ, Γ ∋ τ → Δ ∋ τ
 
-instance : Trans Ren Ren Ren where
-  trans := Ren.trans
+def Var.ren (v : Γ ∋ τ) (r : Ren Γ Δ) := r τ v
+
+/-
+Renaming is reflexive and transitive.
+-/
 
 def Ren.id' : Ren Γ Γ := fun _ ↦ id
 
-def Ren.weak {τ  : Ty} : Ren Γ (Γ ∷ τ) := Var.s
+def Ren.comp (r₀₁ : Ren Γ₀ Γ₁) (r₁₂ : Ren Γ₁ Γ₂) : Ren Γ₀ Γ₂ :=
+  fun τ x => r₁₂ τ (r₀₁ τ x)
 
-def Ren.weaks : (Δ : Cx) → Ren Γ (Γ.append Δ)
-  | .nil => id'
-  | .cons Δ _ => fun υ x ↦ weak υ (weaks Δ υ x)
+instance : Trans Ren Ren Ren where
+  trans := Ren.comp
 
-def Ren.keep (r : Ren Γ Δ) {τ  : Ty} : Ren (Γ ∷ τ) (Δ ∷ τ) :=
+/-
+Context extension, and hence appension, acts functorially on renamings.
+-/
+
+def Ren.keep (r : Ren Γ Δ) (τ  : Ty) : Ren (Γ ∷ τ) (Δ ∷ τ) :=
   fun υ v => match v with
   | .z => .z
   | .s τ x => .s τ (r τ x)
 
-def Ren.keeps (r : Ren Γ₀ Γ₁) : (Δ : Cx) → Ren (Γ₀.append Δ) (Γ₁.append Δ)
+infixl:70 " ∷ᵣ "  => Ren.keep
+
+-- Context extension preserves the identity renaming.
+theorem Ren.keep_id {Γ : Cx} (τ : Ty) : (@ Ren.id' Γ) ∷ᵣ τ = Ren.id' := by
+  funext υ x; cases x with | _ => rfl
+
+-- Context extension preserves the composition of renamings.
+theorem Ren.keep_comp {r₀₁ : Ren Γ₀ Γ₁} {r₁₂ : Ren Γ₁ Γ₂}
+  : (r₀₁ ⬝ r₁₂) ∷ᵣ τ = (r₀₁ ∷ᵣ τ) ⬝ (r₁₂ ∷ᵣ τ) := by
+  funext τ x; cases x with | z | s => rfl
+
+def Ren.keeps (r : Ren Γ₀ Γ₁) : (Δ : Cx) → Ren (Γ₀ ++ Δ) (Γ₁ ++ Δ)
   | .nil => r
-  | .cons Δ _ => (r.keeps Δ).keep
+  | .cons Δ τ => (r.keeps Δ).keep τ
 
-theorem Ren.id_keep_eq_keep {Γ : Cx} (τ : Ty)
-  : Ren.id'.keep = (Ren.id' : Ren (Γ ∷ τ) (Γ ∷ τ)) := by
-  funext υ x
-  cases x with
-  | z | s => rfl
+infixl:70 " ++ᵣ "  => Ren.keeps
 
-theorem Ren.keeps_keep_eq_keep (r : Ren Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
-  : (r.keeps Δ).keep = r.keeps (Δ ∷ τ) := by
-  funext υ x
-  rfl
+/-
+Renaming extends to transforming terms in one context to terms in another.
+-/
 
 def Tm.ren (t : Γ ⊢ τ) (r : Ren Γ Δ) : Δ ⊢ τ :=
   match t with
-  | .var τ x => .var τ (r τ x)
+  | .var τ x => .var τ (x.ren r)
   | .true => .true
   | .false => .false
   | .zero => .zero
@@ -46,69 +61,97 @@ def Tm.ren (t : Γ ⊢ τ) (r : Ren Γ Δ) : Δ ⊢ τ :=
   | .pred e => (e.ren r).pred
   | .zero? e => (e.ren r).zero?
   | .cond s t f => (s.ren r).cond (t.ren r) (f.ren r)
-  | .fn e => (e.ren r.keep).fn
+  | .fn e => (e.ren (r ∷ᵣ _)).fn
   | .app f a => (f.ren r).app (a.ren r)
   | .fix f => (f.ren r).fix
 
-def Tm.tr_cx (t : Γ ⊢ τ) (p : Γ = Δ) : (Δ ⊢ τ) :=
-  t.ren (fun _ x ↦ x.tr_cx p)
+/-
+The functoriality of context extension on renamings allows us to prove that applying the
+identity renaming and composite renamings to a term does exactly what we would expect.
+-/
 
-def Tm.ren_id {t : Γ ⊢ τ} : t.ren Ren.id' = t := by
+def Tm.ren_id_eq {t : Γ ⊢ τ} : t.ren Ren.id' = t := by
   induction t with
   | fn e Φ =>
-    calc (e.ren Ren.id'.keep).fn
-      _ = (e.ren Ren.id').fn := by rw [Ren.id_keep_eq_keep]
+    calc (e.ren (Ren.id' ∷ᵣ _)).fn
+      _ = (e.ren Ren.id').fn := by rw [Ren.keep_id]
       _ = e.fn := by rw [Φ]
   | var | true | false | zero => intros; rfl
   | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
   | app f a Φf Φa => exact congrArg2 _ Φf Φa
   | cond s t f Φs Φt Φf => exact congrArg3 _ Φs Φt Φf
 
-def Tm.tr_cx_rfl (t : Γ ⊢ τ) : t.tr_cx rfl = t := by
-  exact Tm.ren_id
-
-theorem Ren.keep_composite_eq {r₀₁ : Ren Γ₀ Γ₁} {r₁₂ : Ren Γ₁ Γ₂}
-  : (r₀₁ ⬝ r₁₂).keep = (r₀₁.keep ⬝ r₁₂.keep : Ren (Γ₀ ∷ τ) (Γ₂ ∷ τ)) := by
-  funext τ x
-  cases x with | z | s => rfl
-
-theorem Ren.weak_after_eq {r : Ren Γ₀ Γ₁} : r ⬝ Ren.weak = (Ren.weak ⬝ r.keep : Ren Γ₀ (Γ₁ ∷ υ)) := by
-  funext τ x
-  rfl
-
-theorem ren_trans_eq {t : Γ₀ ⊢ τ}
+theorem Ren.ren_comp_eq {t : Γ₀ ⊢ τ}
   : ∀ {Γ₁ Γ₂} {σ₀₁ : Ren Γ₀ Γ₁} {σ₁₂ : Ren Γ₁ Γ₂}, t.ren (σ₀₁ ⬝ σ₁₂) = (t.ren σ₀₁).ren σ₁₂ := by
   induction t with
   | @fn _ τ υ e Φ =>
     intro _ _ r₀₁ r₁₂
-    calc (e.ren (r₀₁ ⬝ r₁₂).keep).fn
-      _ = (e.ren (r₀₁.keep ⬝ r₁₂.keep)).fn := by rw [Ren.keep_composite_eq]
-      _ = ((e.ren r₀₁.keep).ren r₁₂.keep).fn := by rw [Φ]
+    calc (e.ren ((r₀₁ ⬝ r₁₂) ∷ᵣ τ)).fn
+      _ = (e.ren ((r₀₁ ∷ᵣ τ) ⬝ (r₁₂ ∷ᵣ τ))).fn := by rw [Ren.keep_comp]
+      _ = ((e.ren (r₀₁ ∷ᵣ τ)).ren (r₁₂ ∷ᵣ τ)).fn := by rw [Φ]
   | var | true | false | zero => intros; rfl
   | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
   | app f a Φf Φa => exact congrArg2 _ Φf Φa
   | cond s t f Φs Φt Φf => exact congrArg3 _ Φs Φt Φf
 
--- Definition 28 (Parallel closed substitution)
-def Subst Γ Δ := ∀ τ, Var Γ τ → Tm Δ τ
+/-
+Renaming can also be used to weaken variables in a context.
+-/
+
+def Ren.weak {τ  : Ty} : Ren Γ (Γ ∷ τ) := Var.s
+
+theorem Ren.ren_weak_exch {r : Ren Γ₀ Γ₁} : r ⬝ Ren.weak = Ren.weak ⬝ (r ∷ᵣ υ) := by
+  funext τ x
+  rfl
+
+def Ren.weaks : (Δ : Cx) → Ren Γ (Γ ++ Δ)
+  | .nil => id'
+  | .cons Δ _ => fun υ x ↦ weak υ (weaks Δ υ x)
+
+def Tm.tr_cx (t : Γ ⊢ τ) (p : Γ = Δ) : (Δ ⊢ τ) :=
+  t.ren (fun _ x ↦ x.tr_cx p)
+
+def Tm.tr_cx_rfl (t : Γ ⊢ τ) : t.tr_cx rfl = t := by
+  exact Tm.ren_id_eq
+
+/-
+We define substitutions on the syntax of PCF, which takes variables in one context to terms
+in another.
+-/
+
+def Subst Γ Δ := ∀ τ, Γ ∋ τ → Δ ⊢ τ
+
+def Var.sub (v : Γ ∋ τ) (σ : Subst Γ Δ) := σ τ v
+
+/-
+Context extension, and hence appension, acts on substitutions.
+-/
 
 def Subst.keep (σ : Subst Γ Δ) (τ : Ty) : Subst (Γ ∷ τ) (Δ ∷ τ) :=
   fun _ x => match x with
   | .z => .var τ .z
   | .s τ x => (σ τ x).ren .s
 
-def Subst.keeps (σ : Subst Γ₀ Γ₁) : (Δ : Cx) → Subst (Γ₀.append Δ) (Γ₁.append Δ)
+infixl:70 " ∷ₛ "  => Subst.keep
+
+def Subst.keeps (σ : Subst Γ₀ Γ₁) : (Δ : Cx) → Subst (Γ₀ ++ Δ) (Γ₁ ++ Δ)
   | .nil => σ
   | .cons Δ τ => (σ.keeps Δ).keep τ
 
-theorem Subst.keeps_keep_eq_keep (σ : Subst Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
-  : (σ.keeps Δ).keep τ = σ.keeps (Δ ∷ τ) := by
+infixl:70 " ++ₛ "  => Subst.keeps
+
+theorem Subst.keeps_keep_assoc (σ : Subst Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
+  : (σ ++ₛ Δ) ∷ₛ τ = σ ++ₛ (Δ ∷ τ) := by
   funext υ x
   rfl
 
+/-
+Substitution extends to transforming terms in one context to terms in another.
+-/
+
 def Tm.sub (t : Γ ⊢ τ) (σ : Subst Γ Δ) : Δ ⊢ τ :=
   match t with
-  | .var _ x => σ τ x
+  | .var _ x => x.sub σ
   | .true => .true
   | .false => .false
   | .zero => .zero
@@ -116,17 +159,182 @@ def Tm.sub (t : Γ ⊢ τ) (σ : Subst Γ Δ) : Δ ⊢ τ :=
   | .pred t => (t.sub σ).pred
   | .zero? t => (t.sub σ).zero?
   | .cond s t f => (s.sub σ).cond (t.sub σ) (f.sub σ)
-  | .fn e => (e.sub (σ.keep _)).fn
+  | .fn e => (e.sub (σ ∷ₛ _)).fn
   | .app f a => (f.sub σ).app (a.sub σ)
   | .fix f => (f.sub σ).fix
 
+/-
+Substitution is reflexive and transitive.
+-/
+
 def Subst.id' : Subst Γ Γ := fun τ x => .var τ x
 
-def Subst.trans (σ₀₁ : Subst Γ₀ Γ₁) (σ₁₂ : Subst Γ₁ Γ₂) : Subst Γ₀ Γ₂ :=
+def Subst.comp (σ₀₁ : Subst Γ₀ Γ₁) (σ₁₂ : Subst Γ₁ Γ₂) : Subst Γ₀ Γ₂ :=
   fun τ x => (σ₀₁ τ x).sub σ₁₂
 
 instance : Trans Subst Subst Subst where
-  trans := Subst.trans
+  trans := Subst.comp
+
+def Subst.weak {υ : Ty} : Subst Γ (Γ ∷ υ):=
+  fun _ x => x.succ.tm
+
+/-
+Our next goal is to show that context extension acts functorially on substitutions (that is,
+preserves identity and composition). This is surprisingly involved, as you're about to see.
+-/
+
+-- Context extension preserves the identity substitution.
+def Subst.keep_id : (@ Subst.id' Γ) ∷ₛ τ = Subst.id' := by
+  funext τ x
+  cases x with | z | s => rfl
+
+-- The following lemmas allow manipulating variables and renamings in the presence of type casts.
+def cx_eq_cons {Γ Δ : Cx} (p : Γ = Δ) (υ : Ty) : Γ ∷ υ = Δ ∷ υ := by
+  rw [p]
+
+def cx_comp_eq_cx {Γ Δ : Cx} (h : Γ ∷ τ = Δ ∷ υ) : Γ = Δ := by
+  cases h with | refl => rfl
+
+def cx_comp_eq_ty {Γ Δ : Cx} (h : Γ ∷ τ = Δ ∷ υ) : τ = υ := by
+  cases h with | refl => rfl
+
+def Var.tr_cx_z
+  (h : Γ ∷ υ = Δ ∷ υ) : (Var.z).tr_cx h = Var.z := by
+  cases h with | refl => rfl
+
+def Var.tr_cx_s
+  (h : Γ = Δ) : (Var.s τ x).tr_cx (cx_eq_cons h υ) = Var.s τ (x.tr_cx h) := by
+  cases h with | refl => rfl
+
+def keep_tr_cx
+  : ((fun _ x ↦ x.tr_cx h) ∷ᵣ υ : Ren (Γ ∷ υ) (Δ ∷ υ)) = fun _ x ↦ x.tr_cx (cx_eq_cons h υ) := by
+  funext τ x
+  induction h with | refl => cases x with | z | s => rfl
+
+-- Shorthand for weakening with an arbitrary context appension.
+def weak' {Γ} {τ} {Δ} : Ren (Γ ++ Δ) (Γ ∷ τ ++ Δ) := Ren.weak ++ᵣ Δ
+
+-- The application of substitution and generalized weakening commutes on variables.
+def sub_weak'_exchange_var {Δ} : ∀ {Γ} {Γ₀ Γ₁ : Cx} {σ : Subst Γ₀ Γ₁} {τ'} {h : Γ = Γ₀ ++ Δ} {ν} {x : Γ ∋ ν},
+    (((x.tr_cx h).ren (Ren.id' ++ᵣ Δ)).sub (σ ++ₛ Δ)).ren weak'
+  = (((x.tr_cx h).ren (Ren.id' ++ᵣ Δ)).ren weak').sub ((σ ∷ₛ τ') ++ₛ Δ)
+    := by
+    induction Δ with
+    | nil => intros; rfl
+    | cons Δ τ Φ =>
+      intro Γ Γ₀ Γ₁ σ τ' h ν x
+      cases x with
+      | @z ν Γ => induction cx_comp_eq_ty h with | refl => rw [Var.tr_cx_z]; rfl
+      | @s Γ υ ν x =>
+        induction cx_comp_eq_ty h with
+        | refl =>
+          rw [Var.tr_cx_s (cx_comp_eq_cx h)]
+          let y := ((x.tr_cx (cx_comp_eq_cx h))).ren (Ren.id' ++ᵣ Δ)
+          calc  (y.succ.sub (σ ++ₛ (Δ ∷ υ))).ren weak'
+            _ = ((y.sub (σ ++ₛ Δ)).ren Ren.weak).ren (weak' ∷ᵣ υ)     := rfl
+            _ = (y.sub (σ ++ₛ Δ)).ren (Ren.weak ⬝ (weak' ∷ᵣ υ))       := by rw [Ren.ren_comp_eq]
+            _ = (y.sub (σ ++ₛ Δ)).ren (weak' ⬝ Ren.weak)              := by rw [Ren.ren_weak_exch]
+            _ = ((y.sub (σ ++ₛ Δ)).ren weak').ren Ren.weak            := by rw [Ren.ren_comp_eq]
+            _ = ((y.ren weak').sub ((σ ∷ₛ τ') ++ₛ Δ)).ren Ren.weak    := by rw [Φ]
+            _ = (y.succ.ren (weak' ∷ᵣ υ)).sub (σ ∷ₛ τ' ++ₛ (Δ ∷ υ)) := rfl
+
+-- The application of substitution and generalized weakening commutes on terms.
+def sub_weak'_exchange_tm {t : Γ ⊢ τ} : ∀ Δ {Γ₀ Γ₁ : Cx} {h : Γ = Γ₀ ++ Δ} {σ : Subst Γ₀ Γ₁} {τ'},
+    (((t.tr_cx h).ren (Ren.id' ++ᵣ Δ)).sub (σ ++ₛ Δ)).ren weak'
+  = (((t.tr_cx h).ren (Ren.id' ++ᵣ Δ)).ren weak').sub ((σ ∷ₛ τ') ++ₛ Δ)
+  := by
+  induction t with
+  -- If `t` is a variable, this is exactly our variable exchange assumption.
+  | var υ x =>
+    intro Δ Γ₀ Γ₁ h σ τ'
+    show ((((x.tr_cx h).ren (Ren.id' ++ᵣ Δ))).sub (σ ++ₛ Δ)).ren weak'
+       = ((((x.tr_cx h).ren (Ren.id' ++ᵣ Δ))).ren weak').sub ((σ ∷ₛ τ') ++ₛ (Δ))
+    rw [sub_weak'_exchange_var]
+  -- If `t` is a function `e.fn`, we must prove our variable exchange assumption for a weakened context,
+  -- allowing the induction hypothesis to be applied for the function body `e`.
+  | @fn Γ' υ τ e Φ =>
+    intro Δ Γ₀ Γ₁ h σ τ'
+    calc (((e.fn.tr_cx h).ren (Ren.id' ++ᵣ Δ)).sub (σ ++ₛ Δ)).ren weak'
+      _ = ((((e.ren ((fun _ x ↦ x.tr_cx h) ∷ᵣ υ)).ren (Ren.id' ++ᵣ (Δ ∷ υ))).sub
+        (σ ++ₛ (Δ ∷ υ))).ren (weak'.keep _)).fn := rfl
+      _ = ((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren (Ren.id' ++ᵣ (Δ ∷ υ))).sub
+        ((σ ++ₛ (Δ ∷ υ)))).ren (weak'.keep _)).fn := by rw [keep_tr_cx]
+      _ = ((((e.tr_cx (cx_eq_cons h υ)).ren (Ren.id' ++ᵣ (Δ ∷ υ))).sub (σ ++ₛ (Δ ∷ υ))).ren
+        (weak'.keep _)).fn := rfl
+      _ = ((((e.tr_cx (cx_eq_cons h υ)).ren (Ren.id' ++ᵣ (Δ ∷ υ))).ren (weak'.keep _)).sub
+        ((σ.keep τ') ++ₛ (Δ ∷ υ))).fn := by congr; apply Φ (Δ ∷ υ)
+      _ = ((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren ((Ren.id' ++ᵣ Δ).keep _)).ren
+        (weak'.keep _)).sub (((σ.keep τ') ++ₛ Δ).keep υ)).fn := rfl
+      _ = ((((e.ren (Ren.keep (fun _ x ↦ x.tr_cx h) _)).ren ((Ren.id' ++ᵣ Δ).keep _)).ren
+        (weak'.keep _)).sub (((σ.keep τ') ++ₛ Δ).keep υ)).fn := by rw [keep_tr_cx]
+      _ =  (((e.fn.tr_cx h).ren (Ren.id' ++ᵣ Δ)).ren weak').sub (σ ∷ₛ τ' ++ₛ Δ) := rfl
+  | true | false | zero => intros; rfl
+  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ =>
+    intro _ _ _ _ _ _
+    exact congrArg _ (Φ _)
+  | app f a Φf Φa =>
+    intro _ _ _ _ _ _
+    exact congrArg2 _ (Φf _) (Φa _)
+  | cond s t f Φs Φt Φf =>
+    intro _ _ _ _ _ _
+    exact congrArg3 _ (Φs _) (Φt _) (Φf _)
+
+-- The application of substitution and weakening commutes on terms.
+def sub_weak_exchange {t : Γ₀ ⊢ τ} {σ : Subst Γ₀ Γ₁}  : (t.sub σ).ren .s = (t.ren .s).sub (σ ∷ₛ υ) := by
+    have p
+      : ((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil) ++ᵣ Cx.nil)).sub (σ ++ₛ (Cx.nil ++ Cx.nil))).ren .s)
+      = (((t.tr_cx rfl).ren ((Ren.weaks Cx.nil) ++ᵣ Cx.nil)).ren .s).sub ((σ ∷ₛ υ) ++ₛ (Cx.nil ++ Cx.nil))
+      := @sub_weak'_exchange_tm Γ₀ τ t Cx.nil Γ₀ Γ₁ rfl σ υ
+    rw [Tm.tr_cx_rfl] at p
+    change ((t.ren Ren.id').sub σ).ren .s = ((t.ren Ren.id').ren .s).sub (σ ∷ₛ υ) at p
+    rw [Tm.ren_id_eq] at p
+    exact p
+
+-- Context extension preserves the composition of substitutions.
+def Subst.keep_comp {σ₀₁ : Subst Γ₀ Γ₁} {σ₁₂ : Subst Γ₁ Γ₂}
+  : (σ₀₁ ⬝ σ₁₂) ∷ₛ τ = (σ₀₁ ∷ₛ τ) ⬝ (σ₁₂ ∷ₛ τ) := by
+  funext υ x
+  cases x with
+  | z => calc Var.z.tm = Var.z.tm := rfl
+  | s υ x =>
+    show ((σ₀₁ υ x).sub σ₁₂).ren .s = ((σ₀₁ υ x).ren .s).sub (σ₁₂ ∷ₛ τ)
+    exact sub_weak_exchange
+
+/-
+The functoriality of context extension on substitutions allows us to prove that applying the
+identity substitution and composite substitutions to a term does exactly what we would expect.
+-/
+
+def Tm.sub_id_eq {t : Γ ⊢ τ} : t.sub (Subst.id') = t := by
+  induction t with
+  | fn e Φ =>
+    calc e.fn.sub Subst.id'
+      _ = (e.sub (Subst.id' ∷ₛ _)).fn := rfl
+      _ = (e.sub Subst.id').fn        := by rw [Subst.keep_id]
+      _ = e.fn                        := by rw [Φ]
+  | var | true | false | zero => rfl
+  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
+  | app f a Φf Φa => exact congrArg2 _ Φf Φa
+  | cond s t f Φs Φt Φf => apply congrArg3 _ Φs Φt Φf
+
+def Tm.sub_comp_eq {t : Γ₀ ⊢ τ}
+  : ∀ {Γ₁ Γ₂} {σ₀₁ : Subst Γ₀ Γ₁} {σ₁₂ : Subst Γ₁ Γ₂}, t.sub (σ₀₁ ⬝ σ₁₂) = (t.sub σ₀₁).sub σ₁₂ := by
+  induction t with
+  | @fn _ τ υ e Φ =>
+    intro _ _ σ₀₁ σ₁₂
+    calc e.fn.sub (σ₀₁ ⬝ σ₁₂)
+      _ = (e.sub ((σ₀₁ ⬝ σ₁₂) ∷ₛ τ)).fn          := rfl
+      _ = (e.sub ((σ₀₁ ∷ₛ τ) ⬝ (σ₁₂ ∷ₛ τ))).fn   := by rw [Subst.keep_comp]
+      _ = ((e.sub (σ₀₁ ∷ₛ τ)).sub (σ₁₂ ∷ₛ τ)).fn := by rw [Φ]
+      _ = (e.fn.sub σ₀₁).sub σ₁₂                 := rfl
+  | var | true | false | zero => intros; rfl
+  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
+  | app f a Φf Φa => exact congrArg2 _ Φf Φa
+  | cond s t f Φs Φt Φf => exact congrArg3 _ Φs Φt Φf
+
+/-
+Instantiation is dual to weakening, and
+-/
 
 def Subst.inst : (t : Γ ⊢ τ) → Subst (Γ ∷ τ) Γ :=
   fun a τ x => match x with
@@ -141,167 +349,8 @@ def Subst.push (σ : Subst Γ Δ) {υ : Ty} (a : Δ ⊢ υ) : Subst (Γ ∷ υ) 
   | .z => a
   | .s τ x => σ τ x
 
-def Subst.weak {υ : Ty} : Subst Γ (Γ ∷ υ):=
-  fun _ x => x.succ.tm
-
-def id_keep_eq_id : (Subst.id' : Subst Γ Γ).keep τ = Subst.id' := by
-  funext τ x
-  cases x with | z | s => rfl
-
-def sub_id_eq {t : Γ ⊢ τ} : t.sub (Subst.id') = t := by
-  induction t with
-  | fn e Φ =>
-    calc e.fn.sub Subst.id'
-      _ = (e.sub (Subst.id'.keep _)).fn := rfl
-      _ = (e.sub Subst.id').fn := by rw [id_keep_eq_id]
-      _ = e.fn := by rw [Φ]
-  | var | true | false | zero => rfl
-  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
-  | app f a Φf Φa => exact congrArg2 _ Φf Φa
-  | cond s t f Φs Φt Φf => apply congrArg3 _ Φs Φt Φf
-
-def cx_eq_cons {Γ Δ : Cx} (p : Γ = Δ) (υ : Ty) : Γ ∷ υ = Δ ∷ υ := by
-  rw [p]
-
-def Var.tr_cx_z
-  (h : Γ ∷ υ = Δ ∷ υ) : (Var.z).tr_cx h = Var.z := by
-  cases h with | refl => rfl
-
-def Var.tr_cx_s
-  (h : Γ = Δ) : (Var.s τ x).tr_cx (cx_eq_cons h υ) = Var.s τ (x.tr_cx h) := by
-  cases h with | refl => rfl
-
-def keep_tr_cx
-  : (Ren.keep fun _ x ↦ x.tr_cx h : Ren (Γ ∷ υ) (Δ ∷ υ)) = fun _ x ↦ x.tr_cx (cx_eq_cons h υ) := by
-  funext τ x
-  induction h with | refl => cases x with | z | s => rfl
-
--- NOTE: The signature of this lemma betrays the horror within.
-def sub_ren_exchange {t : Γ ⊢ τ} : ∀ {Δ} Δ' {Γ₀ Γ₁ : Cx} (h : Γ = Γ₀.append Δ') {σ : Subst Γ₀ Γ₁} {τ'}
-    (r : ∀ {Γ}, Ren (Γ.append (Δ.append Δ')) ((Γ ∷ τ').append (Δ.append Δ'))),
-    (∀ ν (x : Var Γ ν),
-      (σ.keeps          (Δ.append Δ') ν      (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
-    = (σ.keep τ').keeps (Δ.append Δ') ν (r ν (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))))
-  → ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps (Δ.append Δ'))).ren r
-    = ((((t.tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps (Δ.append Δ'))
-  := by
-  induction t with
-  | var υ x =>
-    intro Δ Δ' Γ₀ Γ₁ h σ τ' r lem
-    calc (σ.keeps (Δ.append Δ') υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r
-      _ = (σ.keep τ').keeps (Δ.append Δ') υ (r υ (((Ren.weaks Δ).keeps Δ' υ (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')))
-      := by rw [lem]
-  | @fn Γ' υ τ e Φ =>
-    -- WARNING: Only suffering awaits.
-    intro Δ Δ' Γ₀ Γ₁ h σ τ' r lem
-    have lemₑ : ∀ (ν : Ty) (x : Var (Γ' ∷ υ) ν),
-      (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep =
-      (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν (x.tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))) := by {
-        intro ν x
-        cases x with
-        | z =>
-          rw [Var.tr_cx_z]
-          show (σ.keeps (Δ.append (Δ' ∷ υ)) υ (Var.z.tr_cx _)).ren r.keep
-            = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) υ (r.keep υ (Var.z.tr_cx _))
-          rw [Var.tr_cx_z]
-          rfl
-        | s ν x =>
-          -- First, we hide the casts under the constructor, allowing computations to proceed.
-          show (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ)))).ren r.keep
-             = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (((Ren.weaks Δ).keeps (Δ' ∷ υ) ν ((Var.s ν x).tr_cx (cx_eq_cons h υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))))
-          rw [Var.tr_cx_s h]
-          show (σ.keeps          (Δ.append (Δ' ∷ υ)) ν           ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep
-             = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν ((Var.s ν ((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h))).tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ)))
-          rw [Var.tr_cx_s (Cx.append_append_eq Γ₀ Δ Δ')]
-          let y := (((Ren.weaks Δ).keeps Δ' ν (x.tr_cx h)).tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))
-          let lem_x :
-            (σ.keeps (Δ.append Δ') ν y).ren r = (σ.keep τ').keeps (Δ.append Δ') ν (r ν y)
-            := lem ν x
-          -- To understand what's going on below, it's helpful to draw the components of the equation as a
-          -- diagram of context morphisms. The proof then follows by dissecting the diagram and proving its -- component equalities.
-          calc   (σ.keeps (Δ.append (Δ' ∷ υ)) ν (Var.s ν y)).ren r.keep
-             _ = ((σ.keeps (Δ.append Δ') ν y).ren Ren.weak).ren r.keep
-              := rfl
-             _ = (σ.keeps (Δ.append Δ') ν y).ren (Ren.weak ⬝ r.keep)
-              := by rw [ren_trans_eq]
-             _ = (σ.keeps (Δ.append Δ') ν y).ren (r ⬝ Ren.weak)
-              := by rw [Ren.weak_after_eq]
-             _ = ((σ.keeps (Δ.append Δ') ν y).ren r).ren Ren.weak
-              := by rw [ren_trans_eq]
-             _ = ((σ.keep τ').keeps (Δ.append Δ') ν (r ν y)).ren Ren.weak
-              := by rw [lem_x]
-             _ = (σ.keep τ').keeps (Δ.append (Δ' ∷ υ)) ν (r.keep ν (Var.s ν y))
-              := rfl
-      }
-    -- TODO: Clean this up.
-    calc (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).sub (σ.keeps (Δ.append Δ'))).ren r
-    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren ((Ren.weaks Δ).keeps Δ').keep).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
-      := rfl
-    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren ((Ren.weaks Δ).keeps Δ').keep).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
-      := by rw [keep_tr_cx, keep_tr_cx]
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub ((σ.keeps (Δ.append Δ')).keep υ)).ren r.keep).fn
-      := rfl
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps (Δ.append Δ' ∷ υ))).ren r.keep).fn
-      := by rw [Subst.keeps_keep_eq_keep]
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).sub (σ.keeps (Δ.append (Δ' ∷ υ)))).ren r.keep).fn
-      := rfl
-    _ = (((((e.tr_cx (cx_eq_cons h υ)).ren ((Ren.weaks Δ).keeps (Δ' ∷ υ))).tr_cx (Cx.append_append_eq Γ₀ Δ (Δ' ∷ υ))).ren r.keep).sub ((σ.keep τ').keeps (Δ.append (Δ' ∷ υ)))).fn
-      := by {
-        congr
-        apply Φ (Δ' ∷ υ) (cx_eq_cons h υ) r.keep lemₑ
-      }
-    _ = (((((e.ren (fun _ x ↦ x.tr_cx (cx_eq_cons h υ))).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (fun _ x ↦ x.tr_cx (cx_eq_cons (Cx.append_append_eq Γ₀ Δ Δ') υ))).ren r.keep).sub (((σ.keep τ').keeps (Δ.append Δ')).keep υ)).fn
-      := rfl
-    _ = (((((e.ren (Ren.keep fun _ x ↦ x.tr_cx h)).ren (((Ren.weaks Δ).keeps Δ').keep)).ren (Ren.keep fun _ x ↦ x.tr_cx (Cx.append_append_eq Γ₀ Δ Δ'))).ren r.keep).sub (((σ.keep τ').keeps (Δ.append Δ')).keep υ)).fn
-      := by rw [keep_tr_cx, keep_tr_cx]
-    _ = (((((e.fn).tr_cx h).ren ((Ren.weaks Δ).keeps Δ')).tr_cx (Cx.append_append_eq Γ₀ Δ Δ')).ren r).sub ((σ.keep τ').keeps (Δ.append Δ'))
-      := rfl
-  | true | false | zero => intros; rfl
-  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ =>
-    intro _ _ _ _ _ _ _ r lem
-    exact congrArg _ (Φ _ _ r lem)
-  | app f a Φf Φa =>
-    intro _ _ _ _ _ _ _ r lem
-    exact congrArg2 _ (Φf _ _ r lem) (Φa _ _ r lem)
-  | cond s t f Φs Φt Φf =>
-    intro _ _ _ _ _ _ _ r lem
-    exact congrArg3 _ (Φs _ _ r lem) (Φt _ _ r lem) (Φf _ _ r lem)
-
-def sub_weak_exchange {t : Γ₀ ⊢ τ} {σ : Subst Γ₀ Γ₁}  : (t.sub σ).ren .s = (t.ren .s).sub (σ.keep υ) := by
-    have p
-      : (((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).sub (σ.keeps (Cx.nil.append Cx.nil))).ren .s)
-      = ((((t.tr_cx rfl).ren ((Ren.weaks Cx.nil).keeps Cx.nil)).tr_cx rfl).ren .s).sub ((σ.keep υ).keeps (Cx.nil.append Cx.nil))
-      := @sub_ren_exchange Γ₀ τ t Cx.nil Cx.nil Γ₀ Γ₁ rfl σ υ .s (fun ν x ↦ rfl)
-    rw [Tm.tr_cx_rfl, Tm.tr_cx_rfl] at p
-    change ((t.ren Ren.id').sub σ).ren .s = ((t.ren Ren.id').ren .s).sub (σ.keep υ) at p
-    rw [Tm.ren_id] at p
-    exact p
-
-def trans_keep_eq_id {σ₀₁ : Subst Γ₀ Γ₁} {σ₁₂ : Subst Γ₁ Γ₂} : (σ₀₁ ⬝ σ₁₂).keep τ = (σ₀₁.keep τ) ⬝ (σ₁₂.keep τ) := by
-  funext υ x
-  cases x with
-  | z => calc Var.z.tm = Var.z.tm := rfl
-  | s υ x =>
-    show ((σ₀₁ υ x).sub σ₁₂).ren .s = ((σ₀₁ υ x).ren .s).sub (σ₁₂.keep τ)
-    exact sub_weak_exchange
-
-def sub_trans_eq {t : Γ₀ ⊢ τ}
-  : ∀ {Γ₁ Γ₂} {σ₀₁ : Subst Γ₀ Γ₁} {σ₁₂ : Subst Γ₁ Γ₂}, t.sub (σ₀₁ ⬝ σ₁₂) = (t.sub σ₀₁).sub σ₁₂ := by
-  induction t with
-  | @fn _ τ υ e Φ =>
-    intro _ _ σ₀₁ σ₁₂
-    calc e.fn.sub (σ₀₁ ⬝ σ₁₂)
-      _ = (e.sub ((σ₀₁ ⬝ σ₁₂).keep τ)).fn := rfl
-      _ = (e.sub (σ₀₁.keep τ ⬝ σ₁₂.keep τ)).fn := by rw [trans_keep_eq_id]
-      _ = ((e.sub (σ₀₁.keep τ)).sub (σ₁₂.keep τ)).fn := by rw [Φ]
-      _ = (e.fn.sub σ₀₁).sub σ₁₂ := rfl
-  | var | true | false | zero => intros; rfl
-  | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
-  | app f a Φf Φa => exact congrArg2 _ Φf Φa
-  | cond s t f Φs Φt Φf => exact congrArg3 _ Φs Φt Φf
-
 def sub_amend_keep_eq {r : Ren Γ₀ Γ₁} {σ : Subst Γ₁ Γ₂}
-  : (σ.amend r).keep τ = ((σ.keep τ).amend r.keep) := by
+  : (σ.amend r) ∷ₛ τ = ((σ ∷ₛ τ).amend (r ∷ᵣ τ)) := by
   funext τ x
   cases x with
   | z | s => rfl
@@ -312,9 +361,9 @@ def sub_amend_eq {t : Γ₀ ⊢ τ}
   | fn e Φ =>
     intro _ _ r σ
     calc (e.fn.ren r).sub σ
-      _ = (((e.ren r.keep).sub (σ.keep _)).fn) := rfl
-      _ = ((e.sub ((σ.keep _).amend r.keep)).fn) := by rw [Φ]
-      _ = ((e.sub ((σ.amend r).keep _)).fn) := by rw [sub_amend_keep_eq]
+      _ = (((e.ren (r ∷ᵣ _)).sub (σ ∷ₛ _)).fn) := rfl
+      _ = ((e.sub ((σ ∷ₛ _).amend (r ∷ᵣ _))).fn) := by rw [Φ]
+      _ = ((e.sub ((σ.amend r) ∷ₛ _)).fn) := by rw [sub_amend_keep_eq]
       _ = e.fn.sub (σ.amend r) := rfl
   | var | true | false | zero => intros; rfl
   | succ e Φ | pred e Φ | zero? e Φ | fix e Φ => exact congrArg _ Φ
@@ -329,9 +378,9 @@ def ren_weak_sub_inst_eq {t : Γ ⊢ τ} : (t.ren .s).sub (Subst.inst a) = t := 
   calc (t.ren .s).sub (Subst.inst a)
     _ = t.sub ((Subst.inst a).amend .s) := by rw [sub_amend_eq]
     _ = t.sub (Subst.id')               := by rw [inst_amend_weak_eq_id]
-    _ = t                               := by rw [sub_id_eq]
+    _ = t                               := by rw [Tm.sub_id_eq]
 
-def sub_push_eq_keep_inst {σ : Subst  Γ Δ} {υ : Ty} {a : Δ ⊢ υ} : σ.push a = σ.keep υ ⬝ Subst.inst a := by
+def sub_push_eq_keep_inst {σ : Subst  Γ Δ} {υ : Ty} {a : Δ ⊢ υ} : σ.push a = (σ ∷ₛ υ) ⬝ Subst.inst a := by
   funext τ x
   cases x with
   | z => rfl
@@ -339,4 +388,4 @@ def sub_push_eq_keep_inst {σ : Subst  Γ Δ} {υ : Ty} {a : Δ ⊢ υ} : σ.pus
     calc σ.push a τ x.s
       _ = σ τ x := rfl
       _ = ((σ τ x).ren .s).sub (Subst.inst a) := by rw [ren_weak_sub_inst_eq]
-      _ = (σ.keep υ ⬝ Subst.inst a) τ x.s     := rfl
+      _ = ((σ ∷ₛ υ) ⬝ Subst.inst a) τ x.s     := rfl

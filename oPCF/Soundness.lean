@@ -6,14 +6,14 @@ theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r�
   | fn e Φ =>
     intro _ r
     calc ⟦e.fn.ren r⟧
-      _ = Cont.curry ((⟦e.ren r.keep⟧) ∘ Ev.from) := rfl
-      _ = Cont.curry (((⟦e⟧) ∘' ⟦r.keep⟧) ∘ Ev.from) := by rw [Φ r.keep]
+      _ = Cont.curry ((⟦e.ren (r.keep _)⟧) ∘ Ev.from) := rfl
+      _ = Cont.curry (((⟦e⟧) ∘' ⟦r.keep _⟧) ∘ Ev.from) := by rw [Φ (r.keep _)]
       _ = (⟦e.fn⟧) ∘' ⟦r⟧ := by {
         apply Cont.ext ∘ funext
         intro ρ
         apply Cont.ext ∘ funext
         intro d
-        have p : (⟦r.keep⟧) (Ev.from (ρ, d)) = Ev.from ((⟦r⟧) ρ, d) := by {
+        have p : (⟦r.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦r⟧) ρ, d) := by {
           apply funext
           intro τ
           apply funext
@@ -22,8 +22,8 @@ theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r�
           | z => rfl
           | s x => rfl
         }
-        calc ((((⟦e⟧) ∘' ⟦r.keep⟧) ∘' Ev.from).curry ρ) d
-          _ = (⟦e⟧) ((⟦r.keep⟧) (Ev.from (ρ, d))) := rfl
+        calc ((((⟦e⟧) ∘' ⟦r.keep _⟧) ∘' Ev.from).curry ρ) d
+          _ = (⟦e⟧) ((⟦r.keep _⟧) (Ev.from (ρ, d))) := rfl
           _ = (⟦e⟧) (Ev.from ((⟦r⟧) ρ, d)) := by rw [p]
           _ = ((⟦e.fn⟧) ((⟦r⟧) ρ)) d := rfl
       }
