@@ -105,29 +105,26 @@ theorem deno_inst_eq : ⟦Subst.inst a⟧ = Ev.from ∘' (Cont.pair Cont.id' (�
   cases x with
   | z | s => rfl
 
+theorem pred_flat_succ_eq_id : Cont.pred ∘' Cont.flat (Nat.succ) = Cont.id' := by
+  apply Cont.ext
+  funext n
+  cases n with
+  | none | some => rfl
+
 -- Theorem 28 (Soundness)
 theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
   intro e
   induction e with
   | true | false | zero | fn => rfl
   | succ _ t_v => exact congrArg (fun p ↦ Cont.flat _ ∘' p) t_v
-  | @pred_zero t _ t_zero =>
+  | @pred v t _ _ t_v_succ =>
     apply Cont.ext ∘ funext
     intro ρ
     calc (⟦t.pred⟧) ρ
-      _ = Cont.flat (Nat.pred) ((⟦t⟧) ρ) := rfl
-      _ = Cont.flat (Nat.pred) ((⟦.zero⟧) ρ) := by rw [t_zero]
-      _ = (⟦.zero⟧) ρ := rfl
-  | @pred_succ v t _ _ t_v_succ =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦t.pred⟧) ρ
-      _ = Cont.flat (Nat.pred) ((⟦t⟧) ρ) := rfl
-      _ = Cont.flat (Nat.pred) ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
-      _ = ((Cont.flat (Nat.pred) ∘' Cont.flat (Nat.succ)) ∘' (⟦v⟧)) ρ := rfl
-      _ = (Cont.flat (Nat.pred ∘ Nat.succ) ∘' (⟦v⟧)) ρ := by rw [Cont.flat_comp Nat.pred Nat.succ]
-      _ = (Cont.flat (id) ∘' (⟦v⟧)) ρ := by rw [Nat.pred_succ_id]
-      _ = (Cont.id' ∘' (⟦v⟧)) ρ := by rw [Cont.flat_id]
+      _ = Cont.pred ((⟦t⟧) ρ) := rfl
+      _ = Cont.pred ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
+      _ = ((Cont.pred ∘' Cont.flat (Nat.succ)) ∘' (⟦v⟧)) ρ := rfl
+      _ = (Cont.id' ∘' (⟦v⟧)) ρ := by rw [pred_flat_succ_eq_id]
       _ = (⟦v⟧) ρ := rfl
   | @zero?_zero t _ t_zero =>
     apply Cont.ext ∘ funext

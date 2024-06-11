@@ -107,6 +107,11 @@ private def lift_flat (f : α → β) : Flat α → Flat β
 | .none => .none
 | .some x => .some (f x)
 
+theorem flat_lift_converse {f : α → β} {a : Flat α} (p : lift_flat f a ≠ .none) : (a ≠ .none) := by
+  intro q
+  rw [q] at p
+  exact p rfl
+
 def Mono.flat (f : α → β) : (Mono (Flat α) (Flat β)) := ⟨
     lift_flat f,
     by {
@@ -118,11 +123,6 @@ def Mono.flat (f : α → β) : (Mono (Flat α) (Flat β)) := ⟨
         exact ⋆
     }
   ⟩
-
-theorem flat_lift_converse {f : α → β} {a : Flat α} (p : lift_flat f a ≠ .none) : (a ≠ .none) := by
-  intro q
-  rw [q] at p
-  exact p rfl
 
 def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := ⟨
     Mono.flat f,

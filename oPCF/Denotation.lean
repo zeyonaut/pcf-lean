@@ -105,13 +105,60 @@ def Cont.cond [Order α] [Domain α] : Cont (Flat Bool) (Cont (α × α) α) := 
   }
 ⟩
 
+def partial_pred : Flat Nat → Flat Nat :=
+  fun n ↦ match n with
+  | .some (.succ n) => .some n
+  | _ => .none
+
+theorem partial_pred_converse {a : Flat Nat} (p : partial_pred a ≠ .none) : (a ≠ .none) := by
+  intro q
+  rw [q] at p
+  exact p rfl
+
+def Mono.pred : Mono (Flat Nat) (Flat Nat) := ⟨
+    partial_pred,
+    by {
+      intro a b a_b
+      cases a with
+      | none => exact Domain.is_bot
+      | some =>
+        rw [a_b Flat.noConfusion]
+        exact ⋆
+    }
+  ⟩
+
+def Cont.pred : Cont (Flat Nat) (Flat Nat) := ⟨
+  Mono.pred,
+  by {
+      intro c h
+      have ⟨a, p₀⟩ := Flat.invert (partial_pred_converse h)
+      rw [p₀]
+      have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
+      cases a with
+      | zero =>
+        show .none = ⨆ (Mono.pred ∘' c)
+        exfalso
+        apply h
+        rw [p₀]
+        rfl
+      | succ a =>
+        show .some a = ⨆ (Mono.pred ∘' c)
+        have p₂ : ⨆ (Mono.pred ∘ c) = .some a := flat_sup_some.mp ⟨n, by
+          calc partial_pred (c n)
+            _ = partial_pred (Flat.some a.succ) := congrArg _ p₁
+            _ = .some a                         := rfl
+        ⟩
+        exact p₂.symm
+    }
+  ⟩
+
 noncomputable def denotation : (Γ ⊢ τ) → Cont (⟦Γ cx⟧) (⟦τ type⟧)
   | .var τ x => ⟨⟨fun ρ ↦ ρ τ x, fun ρ₀_ρ₁ ↦ ρ₀_ρ₁ τ x⟩, ⋆⟩
   | .true => Cont.const (.some true)
   | .false => Cont.const (.some false)
   | .zero => Cont.const (.some 0)
   | .succ e => Cont.flat (Nat.succ) ∘ denotation e
-  | .pred e => Cont.flat (Nat.pred) ∘ denotation e
+  | .pred e => Cont.pred ∘ denotation e
   | .zero? e => Cont.flat (Nat.zero?) ∘ denotation e
   | .cond s t f  => Cont.uncurry (Cont.cond) ∘ Cont.pair (denotation s) (Cont.pair (denotation t) (denotation f))
   | .fn e  => Cont.curry (denotation e ∘ Ev.from)

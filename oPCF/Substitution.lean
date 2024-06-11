@@ -1,7 +1,6 @@
 import «oPCF».Syntax
 
 def Ren Γ Δ := ∀ τ, Var Γ τ → Var Δ τ
-def Reb Γ Δ := {τ : Ty} → Tm Γ τ → Tm Δ τ
 
 def Ren.trans (r₀₁ : Ren Γ₀ Γ₁) (r₁₂ : Ren Γ₁ Γ₂) : Ren Γ₀ Γ₂ :=
   fun τ x => r₁₂ τ (r₀₁ τ x)
@@ -37,26 +36,19 @@ theorem Ren.keeps_keep_eq_keep (r : Ren Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
   funext υ x
   rfl
 
-def Ren.swap {α β : Ty} : Ren (Γ ∷ β ∷ α) (Γ ∷ α ∷ β) := fun _ x ↦ match x with
-  | .z => .s α .z
-  | .s α .z => .z
-  | .s _ (.s _ x) => x.succ.succ
-
-def rename (r : Ren Γ Δ) : Reb Γ Δ :=
-  fun dv => match dv with
+def Tm.ren (t : Γ ⊢ τ) (r : Ren Γ Δ) : Δ ⊢ τ :=
+  match t with
   | .var τ x => .var τ (r τ x)
   | .true => .true
   | .false => .false
   | .zero => .zero
-  | .succ e => (rename r e).succ
-  | .pred e => (rename r e).pred
-  | .zero? e => (rename r e).zero?
-  | .cond s et ef => (rename r s).cond (rename r et) (rename r ef)
-  | .fn e => (rename (r.keep) e).fn
-  | .app f a => (rename r f).app (rename r a)
-  | .fix f => (rename r f).fix
-
-def Tm.ren (t : Γ ⊢ τ) (r : Ren Γ Δ) : Δ ⊢ τ := rename r t
+  | .succ e => (e.ren r).succ
+  | .pred e => (e.ren r).pred
+  | .zero? e => (e.ren r).zero?
+  | .cond s t f => (s.ren r).cond (t.ren r) (f.ren r)
+  | .fn e => (e.ren r.keep).fn
+  | .app f a => (f.ren r).app (a.ren r)
+  | .fix f => (f.ren r).fix
 
 def Tm.tr_cx (t : Γ ⊢ τ) (p : Γ = Δ) : (Δ ⊢ τ) :=
   t.ren (fun _ x ↦ x.tr_cx p)
@@ -114,21 +106,19 @@ theorem Subst.keeps_keep_eq_keep (σ : Subst Γ₀ Γ₁) {Δ : Cx} (τ : Ty)
   funext υ x
   rfl
 
-def subst (σ : Subst Γ Δ) : Reb Γ Δ :=
-  fun {τ} e => match e with
+def Tm.sub (t : Γ ⊢ τ) (σ : Subst Γ Δ) : Δ ⊢ τ :=
+  match t with
   | .var _ x => σ τ x
   | .true => .true
   | .false => .false
   | .zero => .zero
-  | .succ e => (subst σ e).succ
-  | .pred e => (subst σ e).pred
-  | .zero? e => (subst σ e).zero?
-  | .cond s et ef => (subst σ s).cond (subst σ et) (subst σ ef)
-  | .fn e => (subst (σ.keep _) e).fn
-  | .app f a => (subst σ f).app (subst σ a)
-  | .fix f => (subst σ f).fix
-
-def Tm.sub (t : Γ ⊢ τ) (σ : Subst Γ Δ) : Δ ⊢ τ := subst σ t
+  | .succ t => (t.sub σ).succ
+  | .pred t => (t.sub σ).pred
+  | .zero? t => (t.sub σ).zero?
+  | .cond s t f => (s.sub σ).cond (t.sub σ) (f.sub σ)
+  | .fn e => (e.sub (σ.keep _)).fn
+  | .app f a => (f.sub σ).app (a.sub σ)
+  | .fix f => (f.sub σ).fix
 
 def Subst.id' : Subst Γ Γ := fun τ x => .var τ x
 
@@ -153,8 +143,6 @@ def Subst.push (σ : Subst Γ Δ) {υ : Ty} (a : Δ ⊢ υ) : Subst (Γ ∷ υ) 
 
 def Subst.weak {υ : Ty} : Subst Γ (Γ ∷ υ):=
   fun _ x => x.succ.tm
-
-set_option pp.proofs true
 
 def id_keep_eq_id : (Subst.id' : Subst Γ Γ).keep τ = Subst.id' := by
   funext τ x

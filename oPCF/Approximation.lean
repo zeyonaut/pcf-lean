@@ -8,10 +8,7 @@ def Approx : ∀ {τ}, (.nil ⊢ τ) → ↑⟦τ type⟧ → Type
 | .nat    => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_nat n
 | .pow .. => fun t d ↦ ∀ u e, Approx u e → Approx (t.app u) (d e)
 
-infixl:75 " ▹ " => Approx
 notation:75 d " ◃ " t => Approx t d
-
-def Tm.approximations (t : .nil ⊢ τ) (d : ↑⟦τ type⟧) : Type := d ◃ t
 
 -- Definition 29 (Formal approximation for substitution)
 def Approx_Subst {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Subst Γ .nil) : Type :=
@@ -93,22 +90,19 @@ noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : S
         exact .succ (d_t _ rfl)
   | pred t Φ =>
     intro ρ_σ
-    suffices lem : ∀ {t : Tm ..} {d}, (d ◃ t) → (Cont.flat Nat.pred d ◃ t.pred) from lem (Φ ρ_σ)
+    suffices lem : ∀ {t : Tm ..} {d}, (d ◃ t) → (Cont.pred d ◃ t.pred) from lem (Φ ρ_σ)
     intro t d d_t n pred_d_n
     show t.pred ⇓ Tm.from_nat n
     cases d with
     | none => exact Flat.noConfusion pred_d_n
     | some d =>
-      injection pred_d_n with pred_d_n
       cases d with
-      | zero =>
-        cases n with
-        | zero => exact .pred_zero (d_t 0 rfl)
-        | succ => injection pred_d_n
+      | zero => injection pred_d_n
       | succ d =>
+        injection pred_d_n with pred_d_n
         change d = n at pred_d_n
         rw [pred_d_n] at d_t
-        exact .pred_succ (from_nat_is_value n) (d_t n.succ rfl)
+        exact .pred (from_nat_is_value n) (d_t n.succ rfl)
   | zero? t Φ =>
     intro ρ_σ
     suffices lem : ∀ {t : Tm ..} {d}, (d ◃ t) → (Cont.flat Nat.zero? d ◃ t.zero?) from lem (Φ ρ_σ)

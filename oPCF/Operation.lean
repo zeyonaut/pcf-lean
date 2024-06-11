@@ -1,14 +1,12 @@
 import «oPCF».Substitution
 
--- NOTE: Case pred_zero is not in the lecture notes, but appears to be required for the fundamental property of formal approximation to hold?
 inductive Eval : (.nil ⊢ τ) → (.nil ⊢ τ) → Type
   | true : Eval .true .true
   | false : Eval .false .false
   | zero : Eval .zero .zero
   | succ : Eval t v → Eval (t.succ) (v.succ)
   | fn : Eval (.fn e) (e.fn)
-  | pred_zero : Eval t .zero → Eval t.pred .zero
-  | pred_succ : Tm.is_value v → Eval t (v.succ) → Eval (t.pred) (v)
+  | pred : Tm.is_value v → Eval t (v.succ) → Eval (t.pred) (v)
   | zero?_zero : Eval t (.zero) → Eval (t.zero?) .true
   | zero?_succ : Tm.is_value v → Eval t (v.succ) → Eval (t.zero?) .false
   | cond_true {t ct cf vt} : Eval t (.true) → Eval ct vt → Eval (t.cond ct cf) vt
@@ -30,20 +28,9 @@ theorem determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
     case _ _ x =>
     congr
     exact Φ x
-  | pred_zero _ Φ =>
+  | pred _ _ Φ =>
     cases h₁ with
-    | pred_zero => rfl
-    | pred_succ v_value t_v_succ =>
-      cases v_value with
-      | zero => rfl
-      | succ => exfalso; injection Φ t_v_succ
-  | pred_succ v_value _ Φ =>
-    cases h₁ with
-    | pred_zero t_0 =>
-      cases v_value with
-      | zero => rfl
-      | succ => exfalso; injection Φ t_0
-    | pred_succ _ x => injection Φ x
+    | pred _ x => injection Φ x
   | zero?_zero _ Φ =>
     cases h₁ with
     | zero?_zero => rfl
