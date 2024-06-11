@@ -39,6 +39,17 @@ inductive Tm : Cx → Ty → Type
 infix:70 " ⊢ " => Tm
 
 /-
+Certain terms are designated as 'values'.
+-/
+
+inductive Tm.is_value : Γ ⊢ τ → Type
+  | true : true.is_value
+  | false : false.is_value
+  | zero : zero.is_value
+  | succ {v : Tm ..} : v.is_value → v.succ.is_value
+  | fn {e : Tm ..} : e.fn.is_value
+
+/-
 The types of booleans and naturals are designated as 'ground types'.
 -/
 
@@ -46,8 +57,32 @@ inductive Ty.is_ground : Ty → Type
   | bool : bool.is_ground
   | nat : nat.is_ground
 
+def Ty.is_ground.repr : Ty.is_ground τ → Type
+  | .bool => Bool
+  | .nat => Nat
+
 /-
-We define a notion of appending one context to another. Context appending is associative.
+We define functions for converting between mathematical objects and ground values.
+-/
+
+def Tm.from_bool : Bool → Γ ⊢ .bool
+  | .true => .true
+  | .false => .false
+
+def Tm.from_nat : Nat → Γ ⊢ .nat
+  | .zero => .zero
+  | .succ n => .succ (Tm.from_nat n)
+
+def Tm.is_value.extract_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
+  | .true, .true => ⟨.true, rfl⟩
+  | .false, .false => ⟨.false, rfl⟩
+
+def Tm.is_value.extract_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
+  | .zero, .zero => ⟨.zero, rfl⟩
+  | .succ _, .succ v' => let Φ := Tm.is_value.extract_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩
+
+/-
+We define a notion of appending one context to another.
 -/
 
 def Cx.append (Γ : Cx) : Cx → Cx
@@ -63,45 +98,9 @@ def Cx.append_assoc (Γ Δ₀ Δ₁ : Cx) : (Γ ++ Δ₀) ++ Δ₁ = Γ ++ (Δ�
   | cons Δ₁ τ Φ => calc ((Γ ++ Δ₀) ++ Δ₁) ∷ τ = (Γ ++ (Δ₀ ++ Δ₁)) ∷ τ := by rw [Φ]
 
 /-
-We also define helper functions for converting terms to variables, weakening variables,
-and casting variables along an identification of contexts.
+We also define helper functions for converting terms to variables and weakening variables.
 -/
 
 def Var.tm (x : Γ ∋ τ) : Γ ⊢ τ := Tm.var τ x
 
 def Var.succ (x : Γ ∋ τ) {υ : Ty} : (Γ ∷ υ) ∋ τ := s τ x
-
-def Var.tr_cx (t : Γ ∋ τ) : (Γ = Δ) → (Δ ∋ τ)
-  | p => by rw [p] at t; exact t
-
-/-
-We define functions for converting booleans and naturals into syntactic booleans and naturals.
--/
-
-def Tm.from_bool : Bool → Γ ⊢ .bool
-  | .true => .true
-  | .false => .false
-
-def Tm.from_nat : Nat → Γ ⊢ .nat
-  | .zero => .zero
-  | .succ n => .succ (Tm.from_nat n)
-
-/-
-Certain terms are designated as 'values'; values of ground type can be converted back to
-mathematical objects of their corresponding type.
--/
-
-inductive Tm.is_value : Γ ⊢ τ → Type
-  | true : true.is_value
-  | false : false.is_value
-  | zero : zero.is_value
-  | succ {v : Tm ..} : v.is_value → v.succ.is_value
-  | fn {e : Tm ..} : e.fn.is_value
-
-def Tm.is_value.ground_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
-  | .true, .true => ⟨.true, rfl⟩
-  | .false, .false => ⟨.false, rfl⟩
-
-def Tm.is_value.ground_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
-  | .zero, .zero => ⟨.zero, rfl⟩
-  | .succ _, .succ v' => let Φ := ground_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩

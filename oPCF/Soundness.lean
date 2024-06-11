@@ -1,5 +1,5 @@
 import «oPCF».Denotation
-import «oPCF».Operation
+import «oPCF».Evaluation
 
 theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r⟧ = (⟦e⟧) ∘' (⟦r⟧) := by
   induction e with
@@ -41,11 +41,7 @@ theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r�
         := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦r⟧), Cont.pair_after (⟦s⟧) _ (⟦r⟧)]
       _ = (⟦s.cond t f⟧) ∘' ⟦r⟧ := rfl
 
-theorem ren_s_eq : (⟦.s⟧) (Ev.from (ρ, d)) = ρ := by
-  apply funext
-  intro τ
-  apply funext
-  intro x
+theorem ren_s_eq : (⟦Ren.weak⟧) (Ev.from (ρ, d)) = ρ := by
   rfl
 
 theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.sub σ⟧ = (⟦e⟧) ∘' (⟦σ⟧) := by
@@ -69,10 +65,10 @@ theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
           | z => rfl
           | s τ x =>
             calc (⟦σ.keep _⟧) (Ev.from (ρ, d)) τ x.succ
-              _ = (⟦(σ τ x).ren .s⟧) (Ev.from (ρ, d)) := rfl
-              _ = ((⟦σ τ x⟧) ∘' ⟦.s⟧) (Ev.from (ρ, d)) := by rw [deno_ren_eq]
-              _ = (⟦σ τ x⟧) ((⟦.s⟧) (Ev.from (ρ, d))) := rfl
-              _ = (⟦σ τ x⟧) (ρ) := by rw [ren_s_eq]
+              _ = (⟦(x.sub σ).ren Ren.weak⟧) (Ev.from (ρ, d)) := rfl
+              _ = ((⟦x.sub σ⟧) ∘' ⟦Ren.weak⟧) (Ev.from (ρ, d)) := by rw [deno_ren_eq]
+              _ = (⟦x.sub σ⟧) ((⟦Ren.weak⟧) (Ev.from (ρ, d))) := rfl
+              _ = (⟦x.sub σ⟧) (ρ) := by rw [ren_s_eq]
               _ = Ev.from ((⟦σ⟧) ρ, d) τ x.s := rfl
         }
         calc ((((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘' Ev.from).curry ρ) d
@@ -95,84 +91,63 @@ theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
       _ = (⟦s.cond t f⟧) ∘' ⟦σ⟧ := rfl
 
 -- Proposition 27 (Substitution property of the semantic function)
-theorem deno_inst_eq : ⟦Subst.inst a⟧ = Ev.from ∘' (Cont.pair Cont.id' (⟦a⟧)) := by
-  apply Cont.ext ∘ funext
-  intro d
-  apply funext
-  intro τ
-  apply funext
-  intro x
-  cases x with
-  | z | s => rfl
+theorem deno_inst_eq : (⟦Subst.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
+  funext _ x; cases x with | _ => rfl
 
 theorem pred_flat_succ_eq_id : Cont.pred ∘' Cont.flat (Nat.succ) = Cont.id' := by
-  apply Cont.ext
-  funext n
-  cases n with
-  | none | some => rfl
+  apply Cont.ext; funext n; cases n with | _ => rfl
 
 -- Theorem 28 (Soundness)
 theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
   intro e
   induction e with
   | true | false | zero | fn => rfl
-  | succ _ t_v => exact congrArg (fun p ↦ Cont.flat _ ∘' p) t_v
+  | succ _ t_v | @zero?_zero _ _ t_v =>
+    exact congrArg (fun p ↦ Cont.flat _ ∘' p) t_v
   | @pred v t _ _ t_v_succ =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦t.pred⟧) ρ
-      _ = Cont.pred ((⟦t⟧) ρ) := rfl
+    apply Cont.ext; funext ρ
+    calc  (⟦t.pred⟧) ρ
+      _ = Cont.pred ((⟦t⟧) ρ)      := rfl
       _ = Cont.pred ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
       _ = ((Cont.pred ∘' Cont.flat (Nat.succ)) ∘' (⟦v⟧)) ρ := rfl
-      _ = (Cont.id' ∘' (⟦v⟧)) ρ := by rw [pred_flat_succ_eq_id]
-      _ = (⟦v⟧) ρ := rfl
-  | @zero?_zero t _ t_zero =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦t.zero?⟧) ρ
-      _ = Cont.flat (Nat.zero?) ((⟦t⟧) ρ) := rfl
-      _ = Cont.flat (Nat.zero?) ((⟦Tm.zero⟧) ρ) := by rw [t_zero]
-      _ = (⟦.true⟧) ρ := rfl
+      _ = (Cont.id' ∘' (⟦v⟧)) ρ    := by rw [pred_flat_succ_eq_id]
+      _ = (⟦v⟧) ρ                  := rfl
   | @zero?_succ v t v' _ t_v_succ =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    have ⟨n, vn⟩ := v'.ground_nat
-    calc (⟦t.zero?⟧) ρ
-      _ = Cont.flat (Nat.zero?) ((⟦t⟧) ρ) := rfl
+    apply Cont.ext; funext ρ
+    have ⟨n, vn⟩ := v'.extract_nat
+    calc  (⟦t.zero?⟧) ρ
+      _ = Cont.flat (Nat.zero?) ((⟦t⟧) ρ)      := rfl
       _ = Cont.flat (Nat.zero?) ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦v⟧) ρ)) := rfl
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦.from_nat n⟧) ρ)) := by rw [vn]
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ (.some n)) := by rw [deno_ground_nat]
       _ = (⟦.false⟧) ρ := rfl
   | @cond_true _ s t f tv _ _ se te =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦s.cond t f⟧) ρ
-      _ = (Cont.cond ((⟦s⟧) ρ) ((⟦t⟧) ρ, (⟦f⟧) ρ)) := rfl
+    apply Cont.ext; funext ρ
+    calc  (⟦s.cond t f⟧) ρ
+      _ = (Cont.cond ((⟦s⟧) ρ) ((⟦t⟧) ρ, (⟦f⟧) ρ))      := rfl
       _ = (Cont.cond ((⟦.true⟧) ρ) ((⟦tv⟧) ρ, (⟦f⟧) ρ)) := by rw [se, te]
-      _ = (⟦tv⟧) ρ := rfl
+      _ = (⟦tv⟧) ρ                                      := rfl
   | @cond_false _ s t f fv _ _ se fe =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦s.cond t f⟧) ρ
-      _ = (Cont.cond ((⟦s⟧) ρ) ((⟦t⟧) ρ, (⟦f⟧) ρ)) := rfl
+    apply Cont.ext; funext ρ
+    calc  (⟦s.cond t f⟧) ρ
+      _ = (Cont.cond ((⟦s⟧) ρ) ((⟦t⟧) ρ, (⟦f⟧) ρ))       := rfl
       _ = (Cont.cond ((⟦.false⟧) ρ) ((⟦t⟧) ρ, (⟦fv⟧) ρ)) := by rw [se, fe]
-      _ = (⟦fv⟧) ρ := rfl
+      _ = (⟦fv⟧) ρ                                       := rfl
   | @app _ _ f a v e _ _ sf sv =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦f.app a⟧) ρ
-      _ = ((⟦f⟧) ρ) ((⟦a⟧) ρ) := rfl
-      _ = ((⟦e.fn⟧) ρ) ((⟦a⟧) ρ) := by rw [sf]
-      _ = ((⟦e⟧) ∘' Ev.from ∘' (Cont.pair Cont.id' (⟦a⟧))) ρ := rfl
-      _ = ((⟦e⟧) ∘' ⟦Subst.inst a⟧) ρ := by rw [deno_inst_eq]
-      _ = (⟦e.sub (Subst.inst a)⟧) ρ := by rw [deno_subst_eq]
-      _ = (⟦v⟧) ρ := by rw [sv]
+    apply Cont.ext; funext ρ
+    calc  (⟦f.app a⟧) ρ
+      _ = ((⟦f⟧) ρ) ((⟦a⟧) ρ)           := rfl
+      _ = ((⟦e.fn⟧) ρ) ((⟦a⟧) ρ)        := by rw [sf]
+      _ = (⟦e⟧) (Ev.from (ρ, (⟦a⟧) ρ))  := rfl
+      _ = (⟦e⟧) ((⟦Subst.inst a⟧) ρ)    := by rw [deno_inst_eq]
+      _ = ((⟦e⟧) ∘' (⟦Subst.inst a⟧)) ρ := rfl
+      _ = (⟦e.sub (Subst.inst a)⟧) ρ    := by rw [deno_subst_eq]
+      _ = (⟦v⟧) ρ                       := by rw [sv]
   | @fix _ v f _ f_v =>
-    apply Cont.ext ∘ funext
-    intro ρ
-    calc (⟦f.fix⟧) ρ
-      _ = ((⟦f⟧) ρ).fix := rfl
+    apply Cont.ext; funext ρ
+    calc  (⟦f.fix⟧) ρ
+      _ = ((⟦f⟧) ρ).fix           := rfl
       _ = ((⟦f⟧) ρ) ((⟦f⟧) ρ).fix := by rw [Cont.fix_is_fixed]
-      _ = (⟦f.app f.fix⟧) ρ := rfl
-      _ = (⟦v⟧) ρ := by rw [f_v]
+      _ = (⟦f.app f.fix⟧) ρ       := rfl
+      _ = (⟦v⟧) ρ                 := by rw [f_v]

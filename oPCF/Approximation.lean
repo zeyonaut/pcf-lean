@@ -1,30 +1,29 @@
 import «oPCF».Denotation
-import «oPCF».Operation
+import «oPCF».Evaluation
 
 -- NOTE: We define the type arguments of approximation in this order so τ can be inferred.
 -- Definition 27 (Formal approximation)
 def Approx : ∀ {τ}, (.nil ⊢ τ) → ↑⟦τ type⟧ → Type
-| .bool   => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_bool n
-| .nat    => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_nat n
-| .pow .. => fun t d ↦ ∀ u e, Approx u e → Approx (t.app u) (d e)
+  | .bool   => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_bool n
+  | .nat    => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_nat n
+  | .pow .. => fun t d ↦ ∀ u e, Approx u e → Approx (t.app u) (d e)
 
 notation:75 d " ◃ " t => Approx t d
 
 -- Definition 29 (Formal approximation for substitution)
 def Approx_Subst {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Subst Γ .nil) : Type :=
-  ∀ τ x, ρ τ x ◃ σ τ x
+  ∀ τ x, ρ τ x ◃ x.sub σ
 
 infixl:75 " ◃ " => Approx_Subst
 
 def from_nat_is_value : ∀ n, (Tm.from_nat n : Γ ⊢ .nat).is_value
-  | .zero => .zero
+  | .zero   => .zero
   | .succ n => .succ (from_nat_is_value n)
 
 -- Lemma 31
 def bottom_approximates : ∀ {τ} {t : .nil ⊢ τ}, ⊥ ◃ t
-  | .bool   => fun _ p   ↦ Flat.noConfusion p
-  | .nat    => fun _ p   ↦ Flat.noConfusion p
-  | .pow .. => fun _ _ _ ↦ bottom_approximates
+  | .bool | .nat => fun _ p   ↦ Flat.noConfusion p
+  | .pow ..      => fun _ _ _ ↦ bottom_approximates
 
 -- Lemma 32
 noncomputable def supremum_approximates {τ} {t : .nil ⊢ τ} : ∀ {c}, (∀ n, c n ◃ t) → ⨆ c ◃ t := by
@@ -163,7 +162,7 @@ noncomputable def approximation_fundamental {Γ : Cx} {ρ : ⟦Γ cx⟧} {σ : S
       apply Eval.app Eval.fn
       calc (e.sub (σ.keep _)).sub (Subst.inst u)
         _ = e.sub (σ.keep _ ⬝ Subst.inst u) := by rw [Tm.sub_comp_eq]
-        _ = e.sub (σ.push u) := by rw [sub_push_eq_keep_inst]
+        _ = e.sub (σ.push u) := by rw [Subst.push_eq]
         _ ⇓ v := eσu_v
     }
     exact same_eval_same_approx same_eval tρd_tσu
@@ -173,14 +172,14 @@ noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.is_ground → v.is_value �
   intro τ_is_ground v_is_value deno_t_v
   cases τ_is_ground with
   | bool =>
-    have ⟨n, v_n⟩ := v_is_value.ground_bool
+    have ⟨n, v_n⟩ := v_is_value.extract_bool
     have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
     have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
     rw [deno_t_v, v_n, deno_ground_bool, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
   | nat =>
-    have ⟨n, v_n⟩ := v_is_value.ground_nat
+    have ⟨n, v_n⟩ := v_is_value.extract_nat
     have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
     have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
     rw [deno_t_v, v_n, deno_ground_nat, Tm.sub_id_eq] at lem

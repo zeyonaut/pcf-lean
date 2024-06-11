@@ -168,12 +168,12 @@ noncomputable def denotation : (Γ ⊢ τ) → Cont (⟦Γ cx⟧) (⟦τ type⟧
 notation:100 "⟦" t "⟧" => denotation t
 
 noncomputable def denotation_ren (r : Ren Γ Δ) : Cont (⟦Δ cx⟧) (⟦Γ cx⟧) :=
-  ⟨⟨fun ρ τ x ↦ (⟦(r τ x).tm⟧) ρ, fun ρ' τ x ↦ (⟦(r τ x).tm⟧) • ρ'⟩, fun τ x ↦ (⟦(r τ x).tm⟧).sub⟩
+  ⟨⟨fun ρ _ x ↦ (⟦(x.ren r).tm⟧) ρ, fun ρ' _ x ↦ (⟦(x.ren r).tm⟧) • ρ'⟩, fun _ x ↦ (⟦(x.ren r).tm⟧).sub⟩
 
 notation:100 "⟦" r "⟧" => denotation_ren r
 
 noncomputable def denotation_subst (σ : Subst Γ Δ) : Cont (⟦Δ cx⟧) (⟦Γ cx⟧) :=
-  ⟨⟨fun ρ τ x ↦ (⟦σ τ x⟧) ρ, fun ρ' τ x ↦ (⟦σ τ x⟧) • ρ'⟩, fun τ x ↦ (⟦σ τ x⟧).sub⟩
+  ⟨⟨fun ρ _ x ↦ (⟦x.sub σ⟧) ρ, fun ρ' _ x ↦ (⟦x.sub σ⟧) • ρ'⟩, fun _ x ↦ (⟦x.sub σ⟧).sub⟩
 
 notation:100 "⟦" σ "⟧" => denotation_subst σ
 

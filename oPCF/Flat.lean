@@ -72,7 +72,7 @@ theorem flat_sup_some {c : Chain _} {a : α} : (∃ k, c.act k = .some a) ↔ (f
     if p : ∃ a n, c.act n = .some a
     then
       have q : flat_sup c = .some _ := dif_pos p
-      rw [←h, q]
+      rw [← h, q]
       exact p.choose_spec
     else
       have q : flat_sup c = .none := dif_neg p
@@ -99,7 +99,7 @@ noncomputable instance : Domain (Flat α) where
       obtain ⟨a, k⟩ := Flat.invert p
       rw [k]
       have u : ∃ k, c.act k = .some a := flat_sup_some.mpr k
-      rw [←u.choose_spec]
+      rw [← u.choose_spec]
       exact h
 
 -- Proposition 7 (Flat domain lifting)
