@@ -151,3 +151,87 @@ theorem Cont.flat_id : Cont.flat (id) = (Cont.id' : Cont (Flat α) (Flat α) ) :
   intro a
   cases a with
   | none | some => rfl
+
+def cond' [Order α] [Domain α] : Mono (Flat Bool) (Cont (α × α) α) := ⟨
+  fun b ↦ (
+    match b with
+    | .none => Cont.const ⊥
+    | .some true => Cont.fst
+    | .some false => Cont.snd
+  ),
+  by {
+    intro a b a_b
+    cases a with
+    | none => exact Domain.is_bot
+    | some a =>
+      rw [a_b (by simp)]
+      exact ⋆
+  }
+⟩
+
+def Cont.cond [Order α] [Domain α] : Cont (Flat Bool) (Cont (α × α) α) := ⟨
+  cond',
+  by {
+    intro c p
+    by_cases ⨆ c = .none
+    case pos h =>
+      rw [h]
+      exact Domain.is_bot
+    case neg h =>
+      obtain ⟨s, j₀⟩ := Flat.invert h
+      obtain ⟨n, j₁⟩ := flat_sup_some.mpr j₀
+      calc ((cond' (⨆ c)).fn p)
+        _ = ((cond' (c n)).fn p) := by rw [j₀, j₁]
+        _ ⊑ ((⨆ (cond' ∘ c)).fn p) := (Domain.is_bound (cond' ∘ c) n) p
+  }
+⟩
+
+def partial_pred : Flat Nat → Flat Nat :=
+  fun n ↦ match n with
+  | .some (.succ n) => .some n
+  | _ => .none
+
+theorem partial_pred_converse {a : Flat Nat} (p : partial_pred a ≠ .none) : (a ≠ .none) := by
+  intro q
+  rw [q] at p
+  exact p rfl
+
+def Mono.pred : Mono (Flat Nat) (Flat Nat) := ⟨
+    partial_pred,
+    by {
+      intro a b a_b
+      cases a with
+      | none => exact Domain.is_bot
+      | some =>
+        rw [a_b Flat.noConfusion]
+        exact ⋆
+    }
+  ⟩
+
+def Cont.pred : Cont (Flat Nat) (Flat Nat) := ⟨
+  Mono.pred,
+  by {
+      intro c h
+      have ⟨a, p₀⟩ := Flat.invert (partial_pred_converse h)
+      rw [p₀]
+      have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
+      cases a with
+      | zero =>
+        show .none = ⨆ (Mono.pred ∘' c)
+        exfalso
+        apply h
+        rw [p₀]
+        rfl
+      | succ a =>
+        show .some a = ⨆ (Mono.pred ∘' c)
+        have p₂ : ⨆ (Mono.pred ∘ c) = .some a := flat_sup_some.mp ⟨n, by
+          calc partial_pred (c n)
+            _ = partial_pred (Flat.some a.succ) := congrArg _ p₁
+            _ = .some a                         := rfl
+        ⟩
+        exact p₂.symm
+    }
+  ⟩
+
+theorem pred_flat_succ_eq_id : Cont.pred ∘' Cont.flat (Nat.succ) = Cont.id' := by
+  apply Cont.ext; funext n; cases n with | _ => rfl

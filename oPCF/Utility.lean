@@ -13,3 +13,10 @@ theorem congrArg3
   {α₀ : Sort u₀} {α₁ : Sort u₁} {α₂ : Sort u₂} {β : Sort v} {a₀ a₀' : α₀} {a₁ a₁' : α₁} {a₂ a₂' : α₂}
   (f : α₀ → α₁ → α₂ → β) (h₀ : Eq a₀ a₀') (h₁ : Eq a₁ a₁') (h₂ : Eq a₂ a₂') : Eq (f a₀ a₁ a₂) (f a₀' a₁' a₂')
   := h₀ ▸ h₁ ▸ h₂ ▸ rfl
+
+structure LogicallyEquivalent (a : Sort i) (b : Sort j) : Sort max 1 i j where
+  intro ::
+  mp : a → b
+  mpr : b → a
+
+infix:20 "⇔" => LogicallyEquivalent

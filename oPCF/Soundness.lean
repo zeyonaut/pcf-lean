@@ -1,101 +1,5 @@
-import «oPCF».Denotation
-import «oPCF».Evaluation
-
-theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r⟧ = (⟦e⟧) ∘' (⟦r⟧) := by
-  induction e with
-  | fn e Φ =>
-    intro _ r
-    calc ⟦e.fn.ren r⟧
-      _ = Cont.curry ((⟦e.ren (r.keep _)⟧) ∘ Ev.from) := rfl
-      _ = Cont.curry (((⟦e⟧) ∘' ⟦r.keep _⟧) ∘ Ev.from) := by rw [Φ (r.keep _)]
-      _ = (⟦e.fn⟧) ∘' ⟦r⟧ := by {
-        apply Cont.ext ∘ funext
-        intro ρ
-        apply Cont.ext ∘ funext
-        intro d
-        have p : (⟦r.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦r⟧) ρ, d) := by {
-          apply funext
-          intro τ
-          apply funext
-          intro x
-          cases x with
-          | z => rfl
-          | s x => rfl
-        }
-        calc ((((⟦e⟧) ∘' ⟦r.keep _⟧) ∘' Ev.from).curry ρ) d
-          _ = (⟦e⟧) ((⟦r.keep _⟧) (Ev.from (ρ, d))) := rfl
-          _ = (⟦e⟧) (Ev.from ((⟦r⟧) ρ, d)) := by rw [p]
-          _ = ((⟦e.fn⟧) ((⟦r⟧) ρ)) d := rfl
-      }
-  | var | true | false | zero => intros; rfl
-  | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => intro _ r; exact congrArg _ (Φ r)
-  | app f a Φf Φa =>
-    intro _ r; exact congrArg2 (fun f a ↦ Cont.eval ∘' Cont.pair f a) (Φf r) (Φa r)
-  | cond s t f Φs Φt Φf =>
-    intro _ r
-    calc ⟦(s.cond t f).ren r⟧
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s.ren r⟧) (Cont.pair (⟦t.ren r⟧) (⟦f.ren r⟧)) := rfl
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair ((⟦s⟧) ∘' ⟦r⟧) (Cont.pair ((⟦t⟧) ∘' ⟦r⟧) ((⟦f⟧) ∘' ⟦r⟧))
-        := by rw [Φs, Φt, Φf]
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) ((Cont.pair (⟦t⟧) (⟦f⟧))) ∘' ⟦r⟧
-        := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦r⟧), Cont.pair_after (⟦s⟧) _ (⟦r⟧)]
-      _ = (⟦s.cond t f⟧) ∘' ⟦r⟧ := rfl
-
-theorem ren_s_eq : (⟦Ren.weak⟧) (Ev.from (ρ, d)) = ρ := by
-  rfl
-
-theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.sub σ⟧ = (⟦e⟧) ∘' (⟦σ⟧) := by
-  induction e with
-  | fn e Φ =>
-    intro _ σ
-    calc ⟦e.fn.sub σ⟧
-      _ = Cont.curry ((⟦e.sub (σ.keep _)⟧) ∘ Ev.from) := rfl
-      _ = Cont.curry (((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘ Ev.from) := by rw [Φ (σ.keep _)]
-      _ = (⟦e.fn⟧) ∘' ⟦σ⟧ := by {
-        apply Cont.ext ∘ funext
-        intro ρ
-        apply Cont.ext ∘ funext
-        intro d
-        have p : (⟦σ.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦σ⟧) ρ, d) := by {
-          apply funext
-          intro τ
-          apply funext
-          intro x
-          cases x with
-          | z => rfl
-          | s τ x =>
-            calc (⟦σ.keep _⟧) (Ev.from (ρ, d)) τ x.succ
-              _ = (⟦(x.sub σ).ren Ren.weak⟧) (Ev.from (ρ, d)) := rfl
-              _ = ((⟦x.sub σ⟧) ∘' ⟦Ren.weak⟧) (Ev.from (ρ, d)) := by rw [deno_ren_eq]
-              _ = (⟦x.sub σ⟧) ((⟦Ren.weak⟧) (Ev.from (ρ, d))) := rfl
-              _ = (⟦x.sub σ⟧) (ρ) := by rw [ren_s_eq]
-              _ = Ev.from ((⟦σ⟧) ρ, d) τ x.s := rfl
-        }
-        calc ((((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘' Ev.from).curry ρ) d
-          _ = (⟦e⟧) ((⟦σ.keep _⟧) (Ev.from (ρ, d))) := rfl
-          _ = (⟦e⟧) (Ev.from ((⟦σ⟧) ρ, d)) := by rw [p]
-          _ = ((⟦e.fn⟧) ((⟦σ⟧) ρ)) d := rfl
-      }
-  | var | true | false | zero => intros; rfl
-  | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => intro _ σ; exact congrArg _ (Φ σ)
-  | app _ _ Φf Φa =>
-    intro _ σ; exact congrArg2 (fun f a ↦ Cont.eval ∘' Cont.pair f a) (Φf σ) (Φa σ)
-  | cond s t f Φs Φt Φf =>
-    intro _ σ
-    calc ⟦(s.cond t f).sub σ⟧
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s.sub σ⟧) (Cont.pair (⟦t.sub σ⟧) (⟦f.sub σ⟧)) := rfl
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair ((⟦s⟧) ∘' ⟦σ⟧) (Cont.pair ((⟦t⟧) ∘' ⟦σ⟧) ((⟦f⟧) ∘' ⟦σ⟧))
-        := by rw [Φs, Φt, Φf]
-      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) ((Cont.pair (⟦t⟧) (⟦f⟧))) ∘' ⟦σ⟧
-        := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦σ⟧), Cont.pair_after (⟦s⟧) _ (⟦σ⟧)]
-      _ = (⟦s.cond t f⟧) ∘' ⟦σ⟧ := rfl
-
--- Proposition 27 (Substitution property of the semantic function)
-theorem deno_inst_eq : (⟦Subst.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
-  funext _ x; cases x with | _ => rfl
-
-theorem pred_flat_succ_eq_id : Cont.pred ∘' Cont.flat (Nat.succ) = Cont.id' := by
-  apply Cont.ext; funext n; cases n with | _ => rfl
+import «oPCF».Context
+import «oPCF».Approximation
 
 -- Theorem 28 (Soundness)
 theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
@@ -151,3 +55,52 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = ((⟦f⟧) ρ) ((⟦f⟧) ρ).fix := by rw [Cont.fix_is_fixed]
       _ = (⟦f.app f.fix⟧) ρ       := rfl
       _ = (⟦v⟧) ρ                 := by rw [f_v]
+
+-- Theorem 26 (Compositionality)
+def compositionality {t₀ t₁ : Δ ⊢ ν} (p : ⟦t₀⟧ = ⟦t₁⟧) : ∀ (C : Con Δ ν Γ τ), ⟦C t₀⟧ = ⟦C t₁⟧ := by
+  intro C
+  induction C with
+  | ι              => exact p
+  | succ C Φ       => exact congrArg (fun t ↦ Cont.flat (Nat.succ) ∘' t) (Φ p)
+  | pred C Φ       => exact congrArg (fun t ↦ Cont.pred ∘' t) (Φ p)
+  | zero? C Φ      => exact congrArg (fun t ↦ Cont.flat (Nat.zero?) ∘' t) (Φ p)
+  | fn C Φ         => exact congrArg (fun t ↦ Cont.curry (t ∘ Ev.from)) (Φ p)
+  | fix C Φ        => exact congrArg (fun t ↦ Cont.fix' ∘' t) (Φ p)
+  | app_f C a Φ    => exact congrArg (fun f ↦ _ ∘' (Cont.pair f (⟦a⟧))) (Φ p)
+  | app_a f C Φ    => exact congrArg (fun a ↦ _ ∘' (Cont.pair (⟦f⟧) a)) (Φ p)
+  | cond_s C t f Φ => exact congrArg (fun s ↦ _ ∘' Cont.pair s (Cont.pair (⟦t⟧) (⟦f⟧))) (Φ p)
+  | cond_t s C f Φ => exact congrArg (fun t ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair t (⟦f⟧))) (Φ p)
+  | cond_f s t C Φ => exact congrArg (fun f ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦t⟧) f)) (Φ p)
+
+-- Theorem 30 (Adequacy)
+noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.is_ground → v.is_value → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
+  intro τ_is_ground v_is_value deno_t_v
+  cases τ_is_ground with
+  | bool =>
+    have ⟨n, v_n⟩ := v_is_value.extract_bool
+    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    rw [deno_t_v, v_n, deno_ground_bool, Tm.sub_id_eq] at lem
+    rw [v_n]
+    exact lem n rfl
+  | nat =>
+    have ⟨n, v_n⟩ := v_is_value.extract_nat
+    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    rw [deno_t_v, v_n, deno_ground_nat, Tm.sub_id_eq] at lem
+    rw [v_n]
+    exact lem n rfl
+
+-- Theorem 24 (Semantic equality implies contextual equivalence)
+noncomputable def den_eq_implies_con_equiv {t₀ t₁ : Γ ⊢ τ} (eq : ⟦t₀⟧ = ⟦t₁⟧) : t₀ ≅ᶜ t₁
+  := by
+  intro τ τ_is_ground C v
+  constructor
+  case mp =>
+    show C t₀ ⇓ v → C t₁ ⇓ v
+    intro C_t₀_v
+    exact adequacy τ_is_ground C_t₀_v.result_is_value ((compositionality eq C).symm ⬝ soundness C_t₀_v)
+  case mpr =>
+    show C t₁ ⇓ v → C t₀ ⇓ v
+    intro C_t₁_v
+    exact adequacy τ_is_ground C_t₁_v.result_is_value (compositionality eq C ⬝ soundness C_t₁_v)

@@ -64,11 +64,11 @@ theorem Eval.determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
 Evaluation results are values.
 -/
 
-def Eval.value : (t ⇓ v) → v.is_value
+def Eval.result_is_value : (t ⇓ v) → v.is_value
   | .true | .false | .zero | .fn | .zero?_zero .. | .zero?_succ .. => by constructor
-  | succ e   => e.value.succ
+  | succ e   => e.result_is_value.succ
   | pred v _ => v
-  | .cond_true _ e | .cond_false _ e | .app _ e | .fix e => e.value
+  | .cond_true _ e | .cond_false _ e | .app _ e | .fix e => e.result_is_value
 
 /-
 Any value evaluates to itself.

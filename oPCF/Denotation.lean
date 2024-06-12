@@ -71,87 +71,6 @@ def Ev.from {Γ : Cx} {τ : Ty} : Cont (⟦Γ cx⟧ × ⟦τ type⟧) (⟦Γ ∷
   }
 ⟩
 
-def cond' [Order α] [Domain α] : Mono (Flat Bool) (Cont (α × α) α) := ⟨
-  fun b ↦ (
-    match b with
-    | .none => Cont.const ⊥
-    | .some true => Cont.fst
-    | .some false => Cont.snd
-  ),
-  by {
-    intro a b a_b
-    cases a with
-    | none => exact Domain.is_bot
-    | some a =>
-      rw [a_b (by simp)]
-      exact ⋆
-  }
-⟩
-
-def Cont.cond [Order α] [Domain α] : Cont (Flat Bool) (Cont (α × α) α) := ⟨
-  cond',
-  by {
-    intro c p
-    by_cases ⨆ c = .none
-    case pos h =>
-      rw [h]
-      exact Domain.is_bot
-    case neg h =>
-      obtain ⟨s, j₀⟩ := Flat.invert h
-      obtain ⟨n, j₁⟩ := flat_sup_some.mpr j₀
-      calc ((cond' (⨆ c)).fn p)
-        _ = ((cond' (c n)).fn p) := by rw [j₀, j₁]
-        _ ⊑ ((⨆ (cond' ∘ c)).fn p) := (Domain.is_bound (cond' ∘ c) n) p
-  }
-⟩
-
-def partial_pred : Flat Nat → Flat Nat :=
-  fun n ↦ match n with
-  | .some (.succ n) => .some n
-  | _ => .none
-
-theorem partial_pred_converse {a : Flat Nat} (p : partial_pred a ≠ .none) : (a ≠ .none) := by
-  intro q
-  rw [q] at p
-  exact p rfl
-
-def Mono.pred : Mono (Flat Nat) (Flat Nat) := ⟨
-    partial_pred,
-    by {
-      intro a b a_b
-      cases a with
-      | none => exact Domain.is_bot
-      | some =>
-        rw [a_b Flat.noConfusion]
-        exact ⋆
-    }
-  ⟩
-
-def Cont.pred : Cont (Flat Nat) (Flat Nat) := ⟨
-  Mono.pred,
-  by {
-      intro c h
-      have ⟨a, p₀⟩ := Flat.invert (partial_pred_converse h)
-      rw [p₀]
-      have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
-      cases a with
-      | zero =>
-        show .none = ⨆ (Mono.pred ∘' c)
-        exfalso
-        apply h
-        rw [p₀]
-        rfl
-      | succ a =>
-        show .some a = ⨆ (Mono.pred ∘' c)
-        have p₂ : ⨆ (Mono.pred ∘ c) = .some a := flat_sup_some.mp ⟨n, by
-          calc partial_pred (c n)
-            _ = partial_pred (Flat.some a.succ) := congrArg _ p₁
-            _ = .some a                         := rfl
-        ⟩
-        exact p₂.symm
-    }
-  ⟩
-
 noncomputable def denotation : (Γ ⊢ τ) → Cont (⟦Γ cx⟧) (⟦τ type⟧)
   | .var τ x => ⟨⟨fun ρ ↦ ρ τ x, fun ρ₀_ρ₁ ↦ ρ₀_ρ₁ τ x⟩, ⋆⟩
   | .true => Cont.const (.some true)
@@ -188,3 +107,96 @@ theorem deno_ground_nat : (⟦.from_nat n⟧) ρ = (.some n) := by
       _ = Cont.flat (.succ) ((⟦.from_nat n⟧) ρ) := rfl
       _ = Cont.flat (.succ) (.some n)           := by rw [Φ]
       _ = .some (n.succ)                        := rfl
+
+theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r⟧ = (⟦e⟧) ∘' (⟦r⟧) := by
+  induction e with
+  | fn e Φ =>
+    intro _ r
+    calc ⟦e.fn.ren r⟧
+      _ = Cont.curry ((⟦e.ren (r.keep _)⟧) ∘ Ev.from) := rfl
+      _ = Cont.curry (((⟦e⟧) ∘' ⟦r.keep _⟧) ∘ Ev.from) := by rw [Φ (r.keep _)]
+      _ = (⟦e.fn⟧) ∘' ⟦r⟧ := by {
+        apply Cont.ext ∘ funext
+        intro ρ
+        apply Cont.ext ∘ funext
+        intro d
+        have p : (⟦r.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦r⟧) ρ, d) := by {
+          apply funext
+          intro τ
+          apply funext
+          intro x
+          cases x with
+          | z => rfl
+          | s x => rfl
+        }
+        calc ((((⟦e⟧) ∘' ⟦r.keep _⟧) ∘' Ev.from).curry ρ) d
+          _ = (⟦e⟧) ((⟦r.keep _⟧) (Ev.from (ρ, d))) := rfl
+          _ = (⟦e⟧) (Ev.from ((⟦r⟧) ρ, d)) := by rw [p]
+          _ = ((⟦e.fn⟧) ((⟦r⟧) ρ)) d := rfl
+      }
+  | var | true | false | zero => intros; rfl
+  | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => intro _ r; exact congrArg _ (Φ r)
+  | app f a Φf Φa =>
+    intro _ r; exact congrArg2 (fun f a ↦ Cont.eval ∘' Cont.pair f a) (Φf r) (Φa r)
+  | cond s t f Φs Φt Φf =>
+    intro _ r
+    calc ⟦(s.cond t f).ren r⟧
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s.ren r⟧) (Cont.pair (⟦t.ren r⟧) (⟦f.ren r⟧)) := rfl
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair ((⟦s⟧) ∘' ⟦r⟧) (Cont.pair ((⟦t⟧) ∘' ⟦r⟧) ((⟦f⟧) ∘' ⟦r⟧))
+        := by rw [Φs, Φt, Φf]
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) ((Cont.pair (⟦t⟧) (⟦f⟧))) ∘' ⟦r⟧
+        := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦r⟧), Cont.pair_after (⟦s⟧) _ (⟦r⟧)]
+      _ = (⟦s.cond t f⟧) ∘' ⟦r⟧ := rfl
+
+theorem ren_s_eq : (⟦Ren.weak⟧) (Ev.from (ρ, d)) = ρ := by
+  rfl
+
+theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.sub σ⟧ = (⟦e⟧) ∘' (⟦σ⟧) := by
+  induction e with
+  | fn e Φ =>
+    intro _ σ
+    calc ⟦e.fn.sub σ⟧
+      _ = Cont.curry ((⟦e.sub (σ.keep _)⟧) ∘ Ev.from) := rfl
+      _ = Cont.curry (((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘ Ev.from) := by rw [Φ (σ.keep _)]
+      _ = (⟦e.fn⟧) ∘' ⟦σ⟧ := by {
+        apply Cont.ext ∘ funext
+        intro ρ
+        apply Cont.ext ∘ funext
+        intro d
+        have p : (⟦σ.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦σ⟧) ρ, d) := by {
+          apply funext
+          intro τ
+          apply funext
+          intro x
+          cases x with
+          | z => rfl
+          | s τ x =>
+            calc (⟦σ.keep _⟧) (Ev.from (ρ, d)) τ x.succ
+              _ = (⟦(x.sub σ).ren Ren.weak⟧) (Ev.from (ρ, d)) := rfl
+              _ = ((⟦x.sub σ⟧) ∘' ⟦Ren.weak⟧) (Ev.from (ρ, d)) := by rw [deno_ren_eq]
+              _ = (⟦x.sub σ⟧) ((⟦Ren.weak⟧) (Ev.from (ρ, d))) := rfl
+              _ = (⟦x.sub σ⟧) (ρ) := by rw [ren_s_eq]
+              _ = Ev.from ((⟦σ⟧) ρ, d) τ x.s := rfl
+        }
+        calc ((((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘' Ev.from).curry ρ) d
+          _ = (⟦e⟧) ((⟦σ.keep _⟧) (Ev.from (ρ, d))) := rfl
+          _ = (⟦e⟧) (Ev.from ((⟦σ⟧) ρ, d)) := by rw [p]
+          _ = ((⟦e.fn⟧) ((⟦σ⟧) ρ)) d := rfl
+      }
+  | var | true | false | zero => intros; rfl
+  | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => intro _ σ; exact congrArg _ (Φ σ)
+  | app _ _ Φf Φa =>
+    intro _ σ; exact congrArg2 (fun f a ↦ Cont.eval ∘' Cont.pair f a) (Φf σ) (Φa σ)
+  | cond s t f Φs Φt Φf =>
+    intro _ σ
+    calc ⟦(s.cond t f).sub σ⟧
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s.sub σ⟧) (Cont.pair (⟦t.sub σ⟧) (⟦f.sub σ⟧)) := rfl
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair ((⟦s⟧) ∘' ⟦σ⟧) (Cont.pair ((⟦t⟧) ∘' ⟦σ⟧) ((⟦f⟧) ∘' ⟦σ⟧))
+        := by rw [Φs, Φt, Φf]
+      _ = Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) ((Cont.pair (⟦t⟧) (⟦f⟧))) ∘' ⟦σ⟧
+        := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦σ⟧), Cont.pair_after (⟦s⟧) _ (⟦σ⟧)]
+      _ = (⟦s.cond t f⟧) ∘' ⟦σ⟧ := rfl
+
+-- Proposition 27 (Substitution property of the semantic function)
+theorem deno_inst_eq : (⟦Subst.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
+  funext _ x; cases x with | _ => rfl
