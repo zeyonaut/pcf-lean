@@ -42,22 +42,22 @@ infix:70 " ⊢ " => Tm
 Certain terms are designated as 'values'.
 -/
 
-inductive Tm.is_value : Γ ⊢ τ → Type
-  | true : true.is_value
-  | false : false.is_value
-  | zero : zero.is_value
-  | succ {v : Tm ..} : v.is_value → v.succ.is_value
-  | fn {e : Tm ..} : e.fn.is_value
+inductive Tm.IsValue : Γ ⊢ τ → Type
+  | true : true.IsValue
+  | false : false.IsValue
+  | zero : zero.IsValue
+  | succ {v : Tm ..} : v.IsValue → v.succ.IsValue
+  | fn {e : Tm ..} : e.fn.IsValue
 
 /-
 The types of booleans and naturals are designated as 'ground types'.
 -/
 
-inductive Ty.is_ground : Ty → Type
-  | bool : bool.is_ground
-  | nat : nat.is_ground
+inductive Ty.IsGround : Ty → Type
+  | bool : bool.IsGround
+  | nat : nat.IsGround
 
-def Ty.is_ground.repr : Ty.is_ground τ → Type
+def Ty.IsGround.repr : Ty.IsGround τ → Type
   | .bool => Bool
   | .nat => Nat
 
@@ -73,13 +73,17 @@ def Tm.from_nat : Nat → Γ ⊢ .nat
   | .zero => .zero
   | .succ n => .succ (Tm.from_nat n)
 
-def Tm.is_value.extract_bool : {v : nil ⊢ .bool} → v.is_value → (n : Bool) ×' v = from_bool n
+def Tm.IsValue.extract_bool : {v : nil ⊢ .bool} → v.IsValue → (n : Bool) ×' v = from_bool n
   | .true, .true => ⟨.true, rfl⟩
   | .false, .false => ⟨.false, rfl⟩
 
-def Tm.is_value.extract_nat : {v : nil ⊢ .nat} → v.is_value → (n : Nat) ×' v = from_nat n
+def Tm.IsValue.extract_nat : {v : nil ⊢ .nat} → v.IsValue → (n : Nat) ×' v = from_nat n
   | .zero, .zero => ⟨.zero, rfl⟩
-  | .succ _, .succ v' => let Φ := Tm.is_value.extract_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩
+  | .succ _, .succ v' => let Φ := Tm.IsValue.extract_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩
+
+def from_nat_is_value : ∀ n, (Tm.from_nat n : Γ ⊢ .nat).IsValue
+  | .zero   => .zero
+  | .succ n => .succ (from_nat_is_value n)
 
 /-
 We define a notion of appending one context to another.

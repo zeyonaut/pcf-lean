@@ -342,3 +342,33 @@ def scott [Order D] [Domain D] {φ : D → Sort u} {f : Cont D D}
   induction n with
   | zero => exact closed_0
   | succ n Φ => exact closed_f Φ
+
+def Mono.swap [Order α] [Domain α] [Order β] [Domain β] : Mono (α × β) (β × α) := ⟨
+  fun p ↦ ⟨p.snd, p.fst⟩,
+  fun ⟨a', b'⟩ ↦ ⟨b', a'⟩
+⟩
+
+def Cont.swap [Order α] [Domain α] [Order β] [Domain β] : Cont (α × β) (β × α) := ⟨
+  Mono.swap,
+  by {
+    intro c
+    calc Mono.swap (⨆ c)
+      _ ⊑ ⨆ (c.snd.pair c.fst) := ⋆
+      _ ⊑ ⨆ (Mono.swap ∘' c) := sup_is_mono ⋆
+  }
+⟩
+
+def assoc_swap_assoc' {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] : Mono ((α × β) × γ) ((α × γ) × β) := ⟨
+  fun p ↦ ⟨⟨p.fst.fst, p.snd⟩, p.fst.snd⟩,
+  fun ⟨⟨a', b'⟩, c'⟩ ↦ ⟨⟨a', c'⟩, b'⟩
+⟩
+
+def Cont.assoc_swap_assoc {α : Type i} {β : Type j} [Order α] [Domain α] [Order β] [Domain β] [Order γ] [Domain γ] : Cont ((α × β) × γ) ((α × γ) × β) := ⟨
+  assoc_swap_assoc',
+  by {
+    intro c
+    calc assoc_swap_assoc' (⨆ c)
+      _ ⊑ ⨆ ((c.fst.fst.pair c.snd).pair c.fst.snd) := ⋆
+      _ ⊑ ⨆ (assoc_swap_assoc' ∘' c) := sup_is_mono ⋆
+  }
+⟩

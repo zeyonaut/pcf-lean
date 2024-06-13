@@ -1,7 +1,10 @@
 import «oPCF».Context
 import «oPCF».Approximation
 
--- Theorem 28 (Soundness)
+/-
+Soundness states that the evaluand and result of any evaluation have the same denotation.
+-/
+
 theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
   intro e
   induction e with
@@ -56,42 +59,55 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = (⟦f.app f.fix⟧) ρ       := rfl
       _ = (⟦v⟧) ρ                 := by rw [f_v]
 
--- Theorem 26 (Compositionality)
+/-
+Compositionality states that contextual application preserves denotational equality.
+-/
+
 def compositionality {t₀ t₁ : Δ ⊢ ν} (p : ⟦t₀⟧ = ⟦t₁⟧) : ∀ (C : Con Δ ν Γ τ), ⟦C t₀⟧ = ⟦C t₁⟧ := by
   intro C
   induction C with
-  | ι              => exact p
-  | succ C Φ       => exact congrArg (fun t ↦ Cont.flat (Nat.succ) ∘' t) (Φ p)
-  | pred C Φ       => exact congrArg (fun t ↦ Cont.pred ∘' t) (Φ p)
-  | zero? C Φ      => exact congrArg (fun t ↦ Cont.flat (Nat.zero?) ∘' t) (Φ p)
-  | fn C Φ         => exact congrArg (fun t ↦ Cont.curry (t ∘ Ev.from)) (Φ p)
-  | fix C Φ        => exact congrArg (fun t ↦ Cont.fix' ∘' t) (Φ p)
-  | app_f C a Φ    => exact congrArg (fun f ↦ _ ∘' (Cont.pair f (⟦a⟧))) (Φ p)
-  | app_a f C Φ    => exact congrArg (fun a ↦ _ ∘' (Cont.pair (⟦f⟧) a)) (Φ p)
-  | cond_s C t f Φ => exact congrArg (fun s ↦ _ ∘' Cont.pair s (Cont.pair (⟦t⟧) (⟦f⟧))) (Φ p)
-  | cond_t s C f Φ => exact congrArg (fun t ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair t (⟦f⟧))) (Φ p)
-  | cond_f s t C Φ => exact congrArg (fun f ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦t⟧) f)) (Φ p)
+  | id'            => exact p
+  | comp _ _ Φ Φ'  => exact Φ' (Φ p)
+  | succ _ Φ       => exact congrArg (fun t ↦ Cont.flat (Nat.succ) ∘' t) (Φ p)
+  | pred _ Φ       => exact congrArg (fun t ↦ Cont.pred ∘' t) (Φ p)
+  | zero? _ Φ      => exact congrArg (fun t ↦ Cont.flat (Nat.zero?) ∘' t) (Φ p)
+  | fn _ Φ         => exact congrArg (fun t ↦ Cont.curry (t ∘ Ev.from)) (Φ p)
+  | fix _ Φ        => exact congrArg (fun t ↦ Cont.fix' ∘' t) (Φ p)
+  | app_f _ a Φ    => exact congrArg (fun f ↦ _ ∘' (Cont.pair f (⟦a⟧))) (Φ p)
+  | app_a f _ Φ    => exact congrArg (fun a ↦ _ ∘' (Cont.pair (⟦f⟧) a)) (Φ p)
+  | cond_s _ t f Φ => exact congrArg (fun s ↦ _ ∘' Cont.pair s (Cont.pair (⟦t⟧) (⟦f⟧))) (Φ p)
+  | cond_t s _ f Φ => exact congrArg (fun t ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair t (⟦f⟧))) (Φ p)
+  | cond_f s t _ Φ => exact congrArg (fun f ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦t⟧) f)) (Φ p)
+  | sub C σ Φ      =>
+    show ⟦(C.fill t₀).sub σ⟧ = ⟦(C.fill t₁).sub σ⟧
+    rw [deno_subst_eq, deno_subst_eq, Φ p]
 
--- Theorem 30 (Adequacy)
-noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.is_ground → v.is_value → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
+/-
+Adequacy states that if a term and value of ground type have the same denotation, then said term
+evaluates to said value.
+-/
+
+noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.IsGround → v.IsValue → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
   intro τ_is_ground v_is_value deno_t_v
   cases τ_is_ground with
   | bool =>
     have ⟨n, v_n⟩ := v_is_value.extract_bool
-    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
-    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := t.approx Subst.Approx.id'
     rw [deno_t_v, v_n, deno_ground_bool, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
   | nat =>
     have ⟨n, v_n⟩ := v_is_value.extract_nat
-    have nil_approx_id : Ev.nil ◃ Subst.id' := by intro τ x; cases x
-    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := approximation_fundamental t nil_approx_id
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := t.approx Subst.Approx.id'
     rw [deno_t_v, v_n, deno_ground_nat, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
 
--- Theorem 24 (Semantic equality implies contextual equivalence)
+/-
+Together, soundness, compositionality, and adequacy can be used to show that denotational equality
+implies contextual equivalence.
+-/
+
 noncomputable def den_eq_implies_con_equiv {t₀ t₁ : Γ ⊢ τ} (eq : ⟦t₀⟧ = ⟦t₁⟧) : t₀ ≅ᶜ t₁
   := by
   intro τ τ_is_ground C v

@@ -1,5 +1,6 @@
 import «oPCF».Substitution
 import «oPCF».Flat
+import «oPCF».Context
 
 structure DomainType : Type (i + 1) :=
   carrier : Type i
@@ -96,6 +97,27 @@ noncomputable def denotation_subst (σ : Subst Γ Δ) : Cont (⟦Δ cx⟧) (⟦�
 
 notation:100 "⟦" σ "⟧" => denotation_subst σ
 
+noncomputable def Con.den : Con Δ υ Γ τ → Cont (⟦Γ cx⟧ × Cont (⟦Δ cx⟧) (⟦υ type⟧)) ⟦τ type⟧
+  | id'        => Cont.uncurry Cont.id' ∘' Cont.swap
+  | comp C₀ C₁ => Cont.uncurry (Cont.curry (C₁.den ∘' Cont.swap)
+                             ∘' Cont.curry (C₀.den ∘' Cont.swap)) ∘' Cont.swap
+  | sub C σ => Cont.uncurry ((Cont.curry C.den) ∘' (⟦σ⟧))
+  | succ C => Cont.flat (Nat.succ) ∘' C.den
+  | pred C => Cont.pred ∘' C.den
+  | zero? C => Cont.flat (Nat.zero?) ∘' C.den
+  | fn C   => Cont.curry ((Cont.uncurry (Cont.curry C.den ∘' Ev.from)) ∘' Cont.assoc_swap_assoc)
+  | cond_s C t f => Cont.uncurry (Cont.cond)
+    ∘' Cont.pair C.den (Cont.pair ((⟦t⟧) ∘' Cont.fst) ((⟦f⟧) ∘' Cont.fst))
+  | cond_t s C f => Cont.uncurry (Cont.cond)
+    ∘' Cont.pair ((⟦s⟧) ∘' Cont.fst) (Cont.pair C.den ((⟦f⟧) ∘' Cont.fst))
+  | cond_f s t C => Cont.uncurry (Cont.cond)
+    ∘' Cont.pair ((⟦s⟧) ∘' Cont.fst) (Cont.pair ((⟦t⟧) ∘' Cont.fst) C.den)
+  | app_f C a => Cont.eval ∘' (Cont.pair C.den ((⟦a⟧) ∘' Cont.fst))
+  | app_a f C => Cont.eval ∘' (Cont.pair ((⟦f⟧) ∘' Cont.fst) C.den)
+  | fix C => Cont.fix' ∘' C.den
+
+notation:100 "⟦" C " con⟧" => Con.den C
+
 theorem deno_ground_bool : ∀ {n}, (⟦.from_bool n⟧) ρ = (.some n)
   | .false | .true => rfl
 
@@ -121,10 +143,7 @@ theorem deno_ren_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r�
         apply Cont.ext ∘ funext
         intro d
         have p : (⟦r.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦r⟧) ρ, d) := by {
-          apply funext
-          intro τ
-          apply funext
-          intro x
+          funext τ x
           cases x with
           | z => rfl
           | s x => rfl
@@ -164,10 +183,7 @@ theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
         apply Cont.ext ∘ funext
         intro d
         have p : (⟦σ.keep _⟧) (Ev.from (ρ, d)) = Ev.from ((⟦σ⟧) ρ, d) := by {
-          apply funext
-          intro τ
-          apply funext
-          intro x
+          funext τ x
           cases x with
           | z => rfl
           | s τ x =>
@@ -200,3 +216,22 @@ theorem deno_subst_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
 -- Proposition 27 (Substitution property of the semantic function)
 theorem deno_inst_eq : (⟦Subst.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
   funext _ x; cases x with | _ => rfl
+
+def Con.fill_den_eq (C : Con Δ υ Γ τ) : ⟦C t⟧ = ((⟦C con⟧) ∘' Cont.swap).curry (⟦t⟧) := by
+  induction C with
+  | id' => rfl
+  | comp C₀ C₁ Φ₀ Φ₁ => show ⟦C₁ (C₀ t)⟧ = _; rw [Φ₁, Φ₀]; rfl
+  | sub C σ Φ => show ⟦(C t).sub σ⟧ = _; rw [deno_subst_eq, Φ]; rfl
+  | fn C Φ => show Cont.curry ((⟦C t⟧) ∘ Ev.from) = _; rw [Φ]; rfl
+  | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => exact congrArg _ Φ
+  | app_f C a Φ => show Cont.eval ∘' (Cont.pair (⟦C t⟧) (⟦a⟧)) = _; rw [Φ]; rfl
+  | app_a f C Φ => show Cont.eval ∘' (Cont.pair (⟦f⟧) (⟦C t⟧)) = _; rw [Φ]; rfl
+  | cond_s C e f Φ =>
+    show Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦C t⟧) (Cont.pair (⟦e⟧) (⟦f⟧)) = _
+    rw [Φ]; rfl
+  | cond_t s C f Φ =>
+    show Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦C t⟧) (⟦f⟧)) = _
+    rw [Φ]; rfl
+  | cond_f s e C Φ =>
+    show Cont.uncurry (Cont.cond) ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦e⟧) (⟦C t⟧)) = _
+    rw [Φ]; rfl

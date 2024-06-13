@@ -10,9 +10,9 @@ inductive Eval : (.nil ⊢ τ) → (.nil ⊢ τ) → Type
   | zero : Eval .zero .zero
   | succ : Eval t v → Eval (t.succ) (v.succ)
   | fn : Eval (.fn e) (e.fn)
-  | pred : Tm.is_value v → Eval t (v.succ) → Eval (t.pred) (v)
+  | pred : Tm.IsValue v → Eval t (v.succ) → Eval (t.pred) (v)
   | zero?_zero : Eval t (.zero) → Eval (t.zero?) .true
-  | zero?_succ : Tm.is_value v → Eval t (v.succ) → Eval (t.zero?) .false
+  | zero?_succ : Tm.IsValue v → Eval t (v.succ) → Eval (t.zero?) .false
   | cond_true {t ct cf vt} : Eval t (.true) → Eval ct vt → Eval (t.cond ct cf) vt
   | cond_false {t ct cf vf} : Eval t (.false) → Eval cf vf → Eval (t.cond ct cf) vf
   | app {e : Tm ..} : Eval f (e.fn) → Eval (e.sub (Subst.inst u)) v → Eval (f.app u) v
@@ -64,7 +64,7 @@ theorem Eval.determinism : t ⇓ v₀ → t ⇓ v₁ → v₀ = v₁ := by
 Evaluation results are values.
 -/
 
-def Eval.result_is_value : (t ⇓ v) → v.is_value
+def Eval.result_is_value : (t ⇓ v) → v.IsValue
   | .true | .false | .zero | .fn | .zero?_zero .. | .zero?_succ .. => by constructor
   | succ e   => e.result_is_value.succ
   | pred v _ => v
@@ -74,6 +74,6 @@ def Eval.result_is_value : (t ⇓ v) → v.is_value
 Any value evaluates to itself.
 -/
 
-def Tm.is_value.self_evaluates : v.is_value → (v ⇓ v)
+def Tm.IsValue.self_evaluates : v.IsValue → (v ⇓ v)
   | .true | .false | .zero | .fn => by constructor
   | .succ n => .succ n.self_evaluates
