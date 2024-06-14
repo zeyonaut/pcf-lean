@@ -11,6 +11,17 @@ class Domain (α) [Order α] where
 notation:max "⊥" => Domain.bot
 notation:max "⨆" => Domain.sup
 
+structure DomainType : Type (i + 1) :=
+  carrier : Type i
+  order : Order carrier
+  domain : Domain carrier
+
+instance : Coe DomainType Type where
+  coe D := D.carrier
+
+instance (τ : DomainType) : Order (τ) := τ.order
+instance (τ : DomainType) : Domain (τ) := τ.domain
+
 def Domain.sup_of_const [Order α] [Domain α] (a : α) : ⨆ (Mono.const a) = a :=
   (by exact Domain.is_least (Mono.const a) ⋆) ⇄! (Domain.is_bound (Mono.const a) 0)
 
@@ -79,7 +90,7 @@ def diagonalize_eval [Order α] [Order β] [Domain β] (c : Chain (Mono α β)) 
     calc (c i).act (d j)
       _ ⊑ (c i).act (d (max i j))         := (c i).act' (d.act' (Nat.le_max_right ..))
       _ ⊑ (c (max i j)).act (d (max i j)) := (c.act' (Nat.le_max_left ..)) _
-      _ ⊑ ⨆ (Mono.eval ∘ Mono.pair c d)       := Domain.is_bound (Mono.eval ∘ Mono.pair c d) ..
+      _ ⊑ ⨆ (Mono.eval ∘ Mono.pair c d)   := Domain.is_bound (Mono.eval ∘ Mono.pair c d) ..
 
 -- Exponentials
 
@@ -343,6 +354,17 @@ def scott [Order D] [Domain D] {φ : D → Sort u} {f : Cont D D}
   | zero => exact closed_0
   | succ n Φ => exact closed_f Φ
 
+def scott3 [Order D] [Domain D] {φ : D → D → D → Sort u} {f₀ : Cont D D} {f₁ : Cont D D} {f₂ : Cont D D}
+  : φ ⊥ ⊥ ⊥
+  → (∀ {c₀ c₁ c₂}, (∀ n, φ (c₀ n) (c₁ n) (c₂ n)) → φ (⨆ c₀) (⨆ c₁) (⨆ c₂))
+  → (∀ {d₀ d₁ d₂}, φ d₀ d₁ d₂ → φ (f₀ d₀) (f₁ d₁) (f₂ d₂)) → φ (f₀.fix) (f₁.fix) (f₂.fix) := by
+  intro closed_0 closed_chain closed_φ
+  apply closed_chain
+  intro n
+  induction n with
+  | zero => exact closed_0
+  | succ n Φ => exact closed_φ Φ
+
 def Mono.swap [Order α] [Domain α] [Order β] [Domain β] : Mono (α × β) (β × α) := ⟨
   fun p ↦ ⟨p.snd, p.fst⟩,
   fun ⟨a', b'⟩ ↦ ⟨b', a'⟩
@@ -372,3 +394,48 @@ def Cont.assoc_swap_assoc {α : Type i} {β : Type j} [Order α] [Domain α] [Or
       _ ⊑ ⨆ (assoc_swap_assoc' ∘' c) := sup_is_mono ⋆
   }
 ⟩
+
+class TrivialDomain (α) [Order α] [Domain α] where
+  eventually_const : (c : Chain α) → ∃ N, ∀ {n}, N ≤ n → c n ⊑ c N
+
+def Domain.eventually_const_sup [Order α] [Domain α]
+  {c : Chain α} : (∀ {n}, N ≤ n → c n ⊑ c N) → ⨆ c ⊑ c N := by
+  intro eventually_const
+  -- suffices lem : ⨆ c ⊑ c N from lem ⇄! Domain.is_bound c N
+  apply Domain.is_least
+  intro n
+  suffices lem : c (max n N) ⊑ c N from (c • Nat.le_max_left n N) ⬝ lem
+  exact eventually_const (Nat.le_max_right n N)
+
+def Mono.promote_trivial [Order α] [Domain α] [TrivialDomain α] [Order β] [Domain β] [TrivialDomain β] (f : Mono α β) : Cont α β := ⟨
+  f,
+  by {
+    intro c
+    have ⟨N₀, ec₀⟩ := TrivialDomain.eventually_const c
+    have ⟨N₁, ec₁⟩ := TrivialDomain.eventually_const (f ∘' c)
+    calc f (⨆ c)
+      _ ⊑ f (c N₀)             := f • Domain.eventually_const_sup ec₀
+      _ ⊑ f (c (max N₀ N₁))    := f • (c • (Nat.le_max_left N₀ N₁))
+      _ = (f ∘' c) (max N₀ N₁) := rfl
+      _ ⊑ (f ∘' c) N₁          := (ec₁ (Nat.le_max_right N₀ N₁))
+      _ ⊑ ⨆ (f ∘' c)           := Domain.is_bound (f ∘' c) N₁
+  }
+⟩
+
+instance (α β)  [Order α] [Domain α] [TrivialDomain α] [Order β] [Domain β] [TrivialDomain β] : TrivialDomain (α × β) where
+  eventually_const := by {
+    intro c
+    have ⟨N₀, ec₀⟩ := TrivialDomain.eventually_const c.fst
+    have ⟨N₁, ec₁⟩ := TrivialDomain.eventually_const c.snd
+    exact ⟨
+      max N₀ N₁,
+      by {
+        intro n Nm_le_n
+        have m₀ := Nat.le_max_left N₀ N₁
+        have m₁ := Nat.le_max_right N₀ N₁
+        constructor
+        exact ec₀ (m₀ ⬝ Nm_le_n) ⬝ (c.fst • m₀)
+        exact ec₁ (m₁ ⬝ Nm_le_n) ⬝ (c.snd • m₁)
+      }
+    ⟩
+  }

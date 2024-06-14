@@ -102,8 +102,29 @@ noncomputable instance : Domain (Flat α) where
       rw [← u.choose_spec]
       exact h
 
+theorem Flat.leq_none {a : Flat α} : a ⊑ .none → a = .none := by
+  intro a_bf_n
+  by_cases a = none
+  case pos => assumption
+  case neg h =>
+    have ⟨n, a_eq_sn⟩ := Flat.invert h
+    exact a_bf_n (by intro a_eq_n; injection a_eq_n.symm ⬝ a_eq_sn)
+
+theorem Flat.some_leq {a : α} : (Flat.some a) ⊑ b → Flat.some a = b := by
+  intro p
+  have x := p (by {intro q; injection q})
+  cases b with
+  | none => injection x
+  | some b => exact x
+
+theorem Flat.under_eq {x : Flat α} : x ⊑ .some a → x ⊑ .some b → a ≠ b → x = .none := by
+  intro under_a under_b a_neq_b
+  by_cases x = none
+  case pos => assumption
+  case neg h => exfalso; exact a_neq_b (by injection (under_a h).symm ⬝ (under_b h))
+
 -- Proposition 7 (Flat domain lifting)
-private def lift_flat (f : α → β) : Flat α → Flat β
+def lift_flat (f : α → β) : Flat α → Flat β
 | .none => .none
 | .some x => .some (f x)
 
@@ -111,6 +132,29 @@ theorem flat_lift_converse {f : α → β} {a : Flat α} (p : lift_flat f a ≠ 
   intro q
   rw [q] at p
   exact p rfl
+
+noncomputable instance (α) [DecidableEq α] : TrivialDomain (Flat α) where
+  eventually_const := fun c ↦ by {
+    by_cases ⨆ c = .none
+    case pos h => exact ⟨0,
+      by {
+        intro n _
+        have cn_none := Domain.is_bound c n
+        rw [h] at cn_none
+        exact cn_none ⬝ Domain.is_bot
+      }
+    ⟩
+    case neg h =>
+      have ⟨a, supc_sa⟩ := Flat.invert h
+      have ⟨N, cN_sa⟩ := flat_sup_some.mpr supc_sa
+      exact ⟨
+        N,
+        by {
+          intro _ N_n _
+          rw [(c • N_n) (by rw [cN_sa]; intro p; injection p)]
+        }
+      ⟩
+  }
 
 def Mono.flat (f : α → β) : (Mono (Flat α) (Flat β)) := ⟨
     lift_flat f,
@@ -124,21 +168,7 @@ def Mono.flat (f : α → β) : (Mono (Flat α) (Flat β)) := ⟨
     }
   ⟩
 
-def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := ⟨
-    Mono.flat f,
-    by {
-      intro c h
-      have ⟨a, p₀⟩ := Flat.invert (flat_lift_converse h)
-      rw [p₀]
-      have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
-      have p₂ : ⨆ (Mono.flat f ∘ c) = .some (f a) := flat_sup_some.mp ⟨n, by
-        calc lift_flat f (c n)
-          _ = lift_flat f (Flat.some a) := congrArg _ p₁
-          _ = Flat.some (f a)           := rfl
-      ⟩
-      exact p₂.symm
-    }
-  ⟩
+def Cont.flat (f : α → β) : (Cont (Flat α) (Flat β)) := (Mono.flat f).promote_trivial
 
 theorem Cont.flat_comp (f : β → γ) (g : α → β) : Cont.flat (f ∘ g) = Cont.flat f ∘' Cont.flat g := by
   apply Cont.ext ∘ funext
@@ -208,30 +238,7 @@ def Mono.pred : Mono (Flat Nat) (Flat Nat) := ⟨
     }
   ⟩
 
-def Cont.pred : Cont (Flat Nat) (Flat Nat) := ⟨
-  Mono.pred,
-  by {
-      intro c h
-      have ⟨a, p₀⟩ := Flat.invert (partial_pred_converse h)
-      rw [p₀]
-      have ⟨n, p₁⟩ := flat_sup_some.mpr p₀
-      cases a with
-      | zero =>
-        show .none = ⨆ (Mono.pred ∘' c)
-        exfalso
-        apply h
-        rw [p₀]
-        rfl
-      | succ a =>
-        show .some a = ⨆ (Mono.pred ∘' c)
-        have p₂ : ⨆ (Mono.pred ∘ c) = .some a := flat_sup_some.mp ⟨n, by
-          calc partial_pred (c n)
-            _ = partial_pred (Flat.some a.succ) := congrArg _ p₁
-            _ = .some a                         := rfl
-        ⟩
-        exact p₂.symm
-    }
-  ⟩
+def Cont.pred : Cont (Flat Nat) (Flat Nat) := Mono.pred.promote_trivial
 
 theorem pred_flat_succ_eq_id : Cont.pred ∘' Cont.flat (Nat.succ) = Cont.id' := by
   apply Cont.ext; funext n; cases n with | _ => rfl

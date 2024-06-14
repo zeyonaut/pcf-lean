@@ -1,21 +1,18 @@
 import «oPCF».Denotation
-import «oPCF».Evaluation
 import «oPCF».Context
 
 /-
-We define formal approximation for three sorts: terms, substitutions, and contexts.
+Formal approximation relates semantic objects to their closed syntactic counterparts.
 -/
 
 -- Definition 27
 -- NOTE: We state the type parameters of approximation in reverse so Lean can infer the type.
-def Tm.Approx : ∀ {τ}, (.nil ⊢ τ) → ↑⟦τ type⟧ → Type
+def Tm.Approx : ∀ {τ}, (.nil ⊢ τ) → ↑⟦τ ty⟧ → Type
   | .bool   => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_bool n
   | .nat    => fun t d ↦ ∀ n,   d = .some n → t ⇓ Tm.from_nat n
   | .pow .. => fun t d ↦ ∀ e s, Tm.Approx e s → Tm.Approx (t.app e) (d s)
 
 notation:75 d " ◃ " t => Tm.Approx t d
-
-infix:75 " ◃ " => Tm.Approx
 
 -- Definition 29
 def Subst.Approx {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Subst Γ .nil) : Type :=
@@ -23,8 +20,8 @@ def Subst.Approx {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Subst Γ .nil) : Type :=
 
 infixl:75 " ◃ " => Subst.Approx
 
-def Con.Approx (D: (Cont (Cont ⟦Δ cx⟧ ⟦υ type⟧) (⟦τ type⟧))) (C : Con Δ υ .nil τ) : Type :=
-    ∀ (d : Cont ⟦Δ cx⟧ ⟦υ type⟧) (t : Δ ⊢ υ),
+def Con.Approx (D: (Cont (Cont ⟦Δ cx⟧ ⟦υ ty⟧) (⟦τ ty⟧))) (C : Con Δ υ .nil τ) : Type :=
+    ∀ (d : Cont ⟦Δ cx⟧ ⟦υ ty⟧) (t : Δ ⊢ υ),
       (∀ {ρ : ⟦Δ cx⟧} {σ}, (ρ ◃ σ) → (d ρ ◃ t.sub σ)) → D d ◃ C t
 
 infix:75 " ◃ " => Con.Approx
@@ -58,23 +55,24 @@ then its approximations are also a subset of the other term's approximations.
 -/
 
 -- Lemma 34
-noncomputable def same_eval_same_approx
-  : ∀ {t₀ t₁ : .nil ⊢ τ}, (∀ {v}, t₀ ⇓ v → t₁ ⇓ v) → ∀ {d}, (d ◃ t₀) → (d ◃ t₁) := by
+def same_eval_same_approx
+  {τ : Ty} : ∀ {t₀ t₁ : .nil ⊢ τ}, (∀ {v}, t₀ ⇓ v → t₁ ⇓ v) → ∀ {d}, (d ◃ t₀) → (d ◃ t₁) := by
   intro t₀ t₁ same_eval d d_t₀
-  induction τ with
-  | bool | nat =>
+  match τ with
+  | .bool | .nat =>
     intro n d_n
     exact same_eval (d_t₀ n d_n)
-  | pow τ₀ τ₁ _ Φ₁ =>
+  | .pow τ₀ τ₁ =>
     intro u e e_u
     have d_e_t₀_u : d e ◃ t₀.app u := d_t₀ u e e_u
     show d e ◃ t₁.app u
-    suffices same_eval_app : ∀ {v}, t₀.app u ⇓ v → t₁.app u ⇓ v from Φ₁ same_eval_app d_e_t₀_u
+    suffices same_eval_app : ∀ {v}, t₀.app u ⇓ v → t₁.app u ⇓ v
+      from same_eval_same_approx same_eval_app d_e_t₀_u
     intro v t₀_u_v
     cases t₀_u_v with
     | app f_fn_e e_u_v => exact .app (same_eval f_fn_e) e_u_v
 
-noncomputable def fn_same_eval {e : _ ⊢ _} : (e.sub (σ.push t) ⇓ v) → (e.fn.sub σ).app t ⇓ v := by
+def fn_same_eval {e : _ ⊢ _} : (e.sub (σ.push t) ⇓ v) → (e.fn.sub σ).app t ⇓ v := by
   intro eσu_v
   apply Eval.app Eval.fn
   calc (e.sub (σ ∷ₛ _)).sub (Subst.inst t)
@@ -83,7 +81,7 @@ noncomputable def fn_same_eval {e : _ ⊢ _} : (e.sub (σ.push t) ⇓ v) → (e.
     _ ⇓ v                               := eσu_v
 
 /-
-We now define methods that lift operations on objects to operations on approximation relations.
+We now define methods which lift syntactic contructs on terms to operations on approximations.
 -/
 
 def Tm.Approx.succ {t : Tm ..} {d} : (d ◃ t) → (Cont.flat Nat.succ d ◃ t.succ) := by
@@ -153,17 +151,22 @@ noncomputable def Tm.Approx.cond {s : .nil ⊢ .bool} {s'} {t f : .nil ⊢ τ} {
       suffices same_eval : ∀ {v}, (f ⇓ v) → s.cond t f ⇓ v from same_eval_same_approx same_eval f'_f
       exact .cond_false (s'_s .false rfl)
 
+/-
+We also lift operations on substitutions to operations on their approximations.
+-/
+
 def Subst.Approx.id' : Ev.nil ◃ Subst.id' := by intro τ x; cases x
 
-def Subst.Approx.push {σ : Subst Γ .nil} {ρ : ⟦Γ cx⟧} (ρ_σ : ρ ◃ σ) {u : .nil ⊢ τ} {d : ↑⟦τ type⟧} (d_u : d ◃ u) : ρ.push d ◃ σ.push u := by
-    intro τ x
-    cases x with
-    | z => exact d_u
-    | s τ x => exact ρ_σ τ x
+def Subst.Approx.push {σ : Subst Γ .nil} {ρ : ⟦Γ cx⟧} (ρ_σ : ρ ◃ σ)
+  {u : .nil ⊢ τ} {d : ↑⟦τ ty⟧} (d_u : d ◃ u) : ρ.push d ◃ σ.push u := by
+  intro τ x
+  cases x with
+  | z => exact d_u
+  | s τ x => exact ρ_σ τ x
 
 /-
-Finally, we can prove the fundamental property of formal approximation, which effectively
-states that any object is formally approximated by its denotation.
+The fundamental property of formal approximation: any syntactic object is
+formally approximated by its denotation.
 -/
 
 -- Theorem 29 (Fundamental property of formal approximation)
@@ -173,6 +176,10 @@ noncomputable def Tm.approx (t : Γ ⊢ τ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ .n
   induction t with
   | var τ x =>
     exact ρ_σ τ x
+  | @fn Δ τ υ e Φ =>
+    intro t d d_t
+    exact same_eval_same_approx fn_same_eval (Φ (ρ_σ.push d_t))
+  -- The rest of the cases are either trivial or immediate by induction.
   | true | false | zero =>
     intro _ h
     injection h with h
@@ -184,9 +191,6 @@ noncomputable def Tm.approx (t : Γ ⊢ τ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ .n
   | zero? _ Φ           => exact (Φ ρ_σ).zero?
   | fix _ Φ             => exact (Φ ρ_σ).fix
   | cond _ _ _ Φs Φt Φf => exact (Φs ρ_σ).cond (Φt ρ_σ) (Φf ρ_σ)
-  | @fn Δ τ υ e Φ =>
-    intro t d d_t
-    exact same_eval_same_approx fn_same_eval (Φ (ρ_σ.push d_t))
 
 noncomputable def Subst.approx (σ' : Subst Γ' Γ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ Cx.nil}
   : (ρ ◃ σ) → ((⟦σ'⟧) ρ ◃ σ' ⬝ σ) := by
@@ -213,6 +217,10 @@ noncomputable def Con.approx (C : Con Δ υ Γ τ) {ρ : ⟦Γ cx⟧} {σ : Subs
     show (⟦C con⟧).curry ((⟦σ'⟧) ρ) d ◃ ((C t).sub σ').sub σ
     rw [← Tm.sub_comp_eq]
     exact Φ (σ'.approx ρ_σ) d t d_t
+  | @fn Δ ν Γ υ τ C Φ =>
+    intro e u u_e
+    exact same_eval_same_approx fn_same_eval (Φ (ρ_σ.push u_e) _ _ d_t)
+  -- The rest of the cases are immediate by induction.
   | app_f _ a Φ    => exact (Φ ρ_σ _ _ d_t) _ _ (a.approx ρ_σ)
   | app_a f _ Φ    => exact (f.approx ρ_σ) _ _ (Φ ρ_σ _ _ d_t)
   | succ _ Φ       => exact (Φ ρ_σ _ _ d_t).succ
@@ -222,6 +230,3 @@ noncomputable def Con.approx (C : Con Δ υ Γ τ) {ρ : ⟦Γ cx⟧} {σ : Subs
   | cond_s _ e f Φ => exact (Φ ρ_σ _ _ d_t).cond (e.approx ρ_σ) (f.approx ρ_σ)
   | cond_t s _ f Φ => exact (s.approx ρ_σ).cond (Φ ρ_σ _ _ d_t) (f.approx ρ_σ)
   | cond_f s e _ Φ => exact (s.approx ρ_σ).cond (e.approx ρ_σ) (Φ ρ_σ _ _ d_t)
-  | @fn Δ ν Γ υ τ C Φ =>
-    intro e u u_e
-    exact same_eval_same_approx fn_same_eval (Φ (ρ_σ.push u_e) _ _ d_t)

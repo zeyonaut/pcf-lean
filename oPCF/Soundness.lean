@@ -1,4 +1,3 @@
-import «oPCF».Context
 import «oPCF».Approximation
 
 /-
@@ -47,9 +46,9 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = ((⟦f⟧) ρ) ((⟦a⟧) ρ)           := rfl
       _ = ((⟦e.fn⟧) ρ) ((⟦a⟧) ρ)        := by rw [sf]
       _ = (⟦e⟧) (Ev.from (ρ, (⟦a⟧) ρ))  := rfl
-      _ = (⟦e⟧) ((⟦Subst.inst a⟧) ρ)    := by rw [deno_inst_eq]
+      _ = (⟦e⟧) ((⟦Subst.inst a⟧) ρ)    := by rw [Subst.inst_den_eq]
       _ = ((⟦e⟧) ∘' (⟦Subst.inst a⟧)) ρ := rfl
-      _ = (⟦e.sub (Subst.inst a)⟧) ρ    := by rw [deno_subst_eq]
+      _ = (⟦e.sub (Subst.inst a)⟧) ρ    := by rw [e.sub_den_eq]
       _ = (⟦v⟧) ρ                       := by rw [sv]
   | @fix _ v f _ f_v =>
     apply Cont.ext; funext ρ
@@ -66,6 +65,11 @@ Compositionality states that contextual application preserves denotational equal
 def compositionality {t₀ t₁ : Δ ⊢ ν} (p : ⟦t₀⟧ = ⟦t₁⟧) : ∀ (C : Con Δ ν Γ τ), ⟦C t₀⟧ = ⟦C t₁⟧ := by
   intro C
   induction C with
+  -- The case for substitution follows from the compositionality of denotations of term substitutions.
+  | sub C σ Φ      =>
+    show ⟦(C.fill t₀).sub σ⟧ = ⟦(C.fill t₁).sub σ⟧
+    rw [(C.fill t₀).sub_den_eq, (C.fill t₁).sub_den_eq, Φ p]
+  -- All other cases are immediate by induction.
   | id'            => exact p
   | comp _ _ Φ Φ'  => exact Φ' (Φ p)
   | succ _ Φ       => exact congrArg (fun t ↦ Cont.flat (Nat.succ) ∘' t) (Φ p)
@@ -78,9 +82,6 @@ def compositionality {t₀ t₁ : Δ ⊢ ν} (p : ⟦t₀⟧ = ⟦t₁⟧) : ∀
   | cond_s _ t f Φ => exact congrArg (fun s ↦ _ ∘' Cont.pair s (Cont.pair (⟦t⟧) (⟦f⟧))) (Φ p)
   | cond_t s _ f Φ => exact congrArg (fun t ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair t (⟦f⟧))) (Φ p)
   | cond_f s t _ Φ => exact congrArg (fun f ↦ _ ∘' Cont.pair (⟦s⟧) (Cont.pair (⟦t⟧) f)) (Φ p)
-  | sub C σ Φ      =>
-    show ⟦(C.fill t₀).sub σ⟧ = ⟦(C.fill t₁).sub σ⟧
-    rw [deno_subst_eq, deno_subst_eq, Φ p]
 
 /-
 Adequacy states that if a term and value of ground type have the same denotation, then said term
@@ -90,6 +91,7 @@ evaluates to said value.
 noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.IsGround → v.IsValue → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
   intro τ_is_ground v_is_value deno_t_v
   cases τ_is_ground with
+  -- The cases for both bool and nat are identical, but we separate the two to avoid complications.
   | bool =>
     have ⟨n, v_n⟩ := v_is_value.extract_bool
     have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := t.approx Subst.Approx.id'
@@ -104,8 +106,8 @@ noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.IsGround → v.IsValue →
     exact lem n rfl
 
 /-
-Together, soundness, compositionality, and adequacy can be used to show that denotational equality
-implies contextual equivalence.
+Together, soundness, compositionality, and adequacy can be used to show that
+equality of denotation implies contextual equivalence.
 -/
 
 noncomputable def den_eq_implies_con_equiv {t₀ t₁ : Γ ⊢ τ} (eq : ⟦t₀⟧ = ⟦t₁⟧) : t₀ ≅ᶜ t₁

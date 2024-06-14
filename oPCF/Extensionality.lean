@@ -69,7 +69,7 @@ contexts return true for the left term only if they return true for the right.
 -/
 
 noncomputable def ConPreord.from_fill
-  : (∀ (C : Con .nil τ .nil .bool), C t₀ ⇓ .true → C t₁ ⇓ .true) → t₀ ≤ᶜ t₁ := by
+  : (∀ (C : Con ..), C t₀ ⇓ .true → C t₁ ⇓ .true) → t₀ ≤ᶜ t₁ := by
   intro con_fill γ γ_is_ground C v C_t₀_v
   let v_is_value := C_t₀_v.result_is_value
   let test : Con .nil γ .nil .bool := γ_is_ground.test_con (v_is_value)
@@ -78,9 +78,16 @@ noncomputable def ConPreord.from_fill
   have lem₁ := (test_true_iff_v (C t₁)).mp
   exact lem₁ (con_fill (C.comp test) (lem₀ C_t₀_v))
 
+/-
+If one terms' denotation approximates another, then the two are related by
+the contextual preorder.
+-/
+
 noncomputable def approx_implies_con_preord (t₀ t₁ : .nil ⊢ τ) : (((⟦t₀⟧) Ev.nil) ◃ t₁) → t₀ ≤ᶜ t₁ := by
   intro t₀_t₁
   apply ConPreord.from_fill
+
+  show ∀ (C : Con ..), C t₀ ⇓ .true → C t₁ ⇓ .true
   intro C C_t₀_true
   have den_C_t₀_true := soundness C_t₀_true
   have C_C := C.approx Subst.Approx.id'
