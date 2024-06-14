@@ -1,4 +1,4 @@
-import «oPCF».Utility
+import «PCF».Utility
 
 /-
 A partial order is a relation which is reflexive, transitive, and antisymmetric.

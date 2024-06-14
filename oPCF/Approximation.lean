@@ -1,5 +1,5 @@
-import «oPCF».Denotation
-import «oPCF».Context
+import «PCF».Denotation
+import «PCF».Context
 
 /-
 Formal approximation relates semantic objects to their closed syntactic counterparts.

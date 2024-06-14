@@ -1,4 +1,4 @@
-import «oPCF».Domain
+import «PCF».Domain
 
 /-
 Any set can be lifted into a 'flat' domain, which is essentially its discrete order but

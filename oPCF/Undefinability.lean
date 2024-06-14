@@ -1,4 +1,4 @@
-import «oPCF».Extensionality
+import «PCF».Extensionality
 
 /-
 While the denotational semantics defined here are 'sound' (in the sense that equality of denotation

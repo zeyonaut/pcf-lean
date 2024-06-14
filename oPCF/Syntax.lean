@@ -1,4 +1,4 @@
-import «oPCF».Utility
+import «PCF».Utility
 
 /-
 The syntax of PCF consists of objects of four sorts: types, contexts, variables, and terms.

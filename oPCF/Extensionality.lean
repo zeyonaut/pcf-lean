@@ -1,4 +1,4 @@
-import «oPCF».Soundness
+import «PCF».Soundness
 
 /-
 The contextual preorder is stated in terms of all contexts, but proving it can be done with

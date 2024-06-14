@@ -1,4 +1,4 @@
-import «oPCF».Substitution
+import «PCF».Substitution
 
 /-
 The 'big-step' operational semantics of PCF characterizes the results of terms.

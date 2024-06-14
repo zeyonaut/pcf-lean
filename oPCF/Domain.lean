@@ -1,4 +1,4 @@
-import «oPCF».Order
+import «PCF».Order
 
 /-
 There are variations on this defintion, but in our case, a domain is a partial order

@@ -1,4 +1,4 @@
-import «oPCF».Evaluation
+import «PCF».Evaluation
 
 /-
 To capture the observable characteristics of terms in PCF, we define a sort of evaluation contexts,

@@ -1,4 +1,4 @@
-import «oPCF».Syntax
+import «PCF».Syntax
 
 /-
 We define the action of substitutions on the syntax of PCF in terms of renamings, which take

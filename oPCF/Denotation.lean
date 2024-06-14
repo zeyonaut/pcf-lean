@@ -1,5 +1,5 @@
-import «oPCF».Flat
-import «oPCF».Context
+import «PCF».Flat
+import «PCF».Context
 
 /-
 To construct a denotational semantics for PCF, we associate each syntactic object
