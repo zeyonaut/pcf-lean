@@ -15,7 +15,7 @@ inductive Eval : (.nil ⊢ τ) → (.nil ⊢ τ) → Type
   | zero?_succ : Tm.IsValue v → Eval t (v.succ) → Eval (t.zero?) .false
   | cond_true {t ct cf vt} : Eval t (.true) → Eval ct vt → Eval (t.cond ct cf) vt
   | cond_false {t ct cf vf} : Eval t (.false) → Eval cf vf → Eval (t.cond ct cf) vf
-  | app {e : Tm ..} : Eval f (e.fn) → Eval (e.sub (Subst.inst u)) v → Eval (f.app u) v
+  | app {e : Tm ..} : Eval f (e.fn) → Eval (e.sub (Sb.inst u)) v → Eval (f.app u) v
   | fix {f : Tm ..} : Eval (f.app f.fix) v → Eval (f.fix) v
 
 infixl:75 " ⇓ " => Eval
@@ -74,6 +74,6 @@ def Eval.result_is_value : (t ⇓ v) → v.IsValue
 Any value evaluates to itself.
 -/
 
-def Tm.IsValue.self_evaluates : v.IsValue → (v ⇓ v)
+def Tm.IsValue.evaluates : v.IsValue → (v ⇓ v)
   | .true | .false | .zero | .fn => by constructor
-  | .succ n => .succ n.self_evaluates
+  | .succ n => .succ n.evaluates

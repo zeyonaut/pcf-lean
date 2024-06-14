@@ -138,7 +138,7 @@ def por_test_b_den_por_eq_b : ∀ {b}, (⟦por_test b⟧) Ev.nil por_curry = Fla
     rw [loop_den_eq, por_test_left_true, por_test_right_true]
 
     show (⟦(Tm.from_bool b)⟧) ρ_por = Flat.some b
-    rw [deno_ground_bool]
+    rw [Tm.from_bool_den_eq]
   }
 
 theorem por_test_den_unequal : ⟦por_test false⟧ ≠ ⟦por_test true⟧ := by
@@ -290,7 +290,7 @@ def Tm.magic (t : Γ ⊢ τ) : ∀ {ρ₀ ρ₁ ρ₂}, Γ.Magic ρ₀ ρ₁ ρ�
   | app f a Φf Φa => exact (Φf mρ) _ _ _ (Φa mρ)
   | cond s t f Φs Φt Φf => exact (Φs mρ).cond (Φt mρ) (Φf mρ)
   | fix t Φ => exact (Φ mρ).fix
-  | @fn Γ υ τ t Φ => intro _ _ _ ma; exact Φ (mρ.push ma)
+  | fn _ Φ => intro _ _ _ ma; exact Φ (mρ.push ma)
 
 /-
 With the fundamental lemma, we can prove that parallel OR is undefinable.
@@ -303,7 +303,6 @@ def por_is_undefinable {f : .nil ⊢ .bool ⇒ .bool ⇒  .bool} : ¬(⟦f⟧) E
   exfalso
   exact por_is_not_magical f_magical
 
-
 /-
 Additionally, any function on which the parallel OR test functions evaluate must be denotationally
 equal to parallel OR.
@@ -312,13 +311,14 @@ equal to parallel OR.
 -- We disable this option temporarily to mitigate a bug in the Lean linter.
 set_option linter.unusedVariables false
 
+-- A simple proof by cases, but annoyingly long.
 def por_test_some_den : (por_test k).app f ⇓ Tm.from_bool n → (⟦f⟧) Ev.nil = por_curry := by
   let k' := k; cases k with
   | _ =>
   intro eval
   cases eval
   case app a b =>
-  injection a.determinism Tm.IsValue.fn.self_evaluates with _ _ _ h
+  injection a.determinism Tm.IsValue.fn.evaluates with _ _ _ h
   rw [h] at b
   change
     ((f.app .true).app loop).cond
@@ -393,7 +393,6 @@ def por_test_some_den : (por_test k).app f ⇓ Tm.from_bool n → (⟦f⟧) Ev.n
       | some n₁ => cases n₁ with | _ => exact f_true_any_eq _
       | none => exact f_true_any_eq _
     | false =>
-      show (⟦f⟧) Ev.nil (.some false) n₁ = por_curry (.some false) n₁
       cases n₁ with
       | some n₁ =>
         cases n₁ with
@@ -412,7 +411,6 @@ def por_test_some_den : (por_test k).app f ⇓ Tm.from_bool n → (⟦f⟧) Ev.n
           _ = .some true                                   := by rw [f_any_true_eq _]
         exact Flat.under_eq ht hf (Bool.noConfusion)
   | none =>
-    show (⟦f⟧) Ev.nil ⊥ n₁ = por_curry ⊥ n₁
     cases n₁ with
     | some n₁ =>
       cases n₁ with
@@ -441,36 +439,31 @@ def por_test_some_den : (por_test k).app f ⇓ Tm.from_bool n → (⟦f⟧) Ev.n
 set_option linter.unusedVariables true
 
 /-
-As such, the parallel OR test functions must be contextually equivalent.
+As such, the parallel OR test functions are contextually equivalent.
 -/
 
 noncomputable def por_test_con_equiv : por_test false ≅ᶜ por_test true := by
-  intro not_con_equiv
+  suffices lem : ∀ b, por_test b ≤ᶜ por_test b.not from
+    ConEquiv.from_preord (lem false) (lem true)
 
-  apply ConEquiv.from_preord
+  intro b
 
-  show por_test false ≤ᶜ por_test true
+  -- It suffices to prove contextual preordering in both directions.
+  show por_test b ≤ᶜ por_test b.not
   apply approx_implies_con_preord
-  intro f f' f_f' n a_n
-  have h := (por_test false).approx Subst.Approx.id'
-  rw [Tm.sub_id_eq] at h
-  have test_f_approx := h _ _ f_f'
-  rw [a_n] at test_f_approx
-  have k := test_f_approx _ rfl
-  exfalso
-  exact por_is_undefinable (por_test_some_den k)
 
-  -- The other direction is identical.
-  show por_test true ≤ᶜ por_test false
-  apply approx_implies_con_preord
-  intro f f' f_f' n a_n
-  have h := (por_test true).approx Subst.Approx.id'
-  rw [Tm.sub_id_eq] at h
-  have test_f_approx := h _ _ f_f'
-  rw [a_n] at test_f_approx
-  have k := test_f_approx _ rfl
+  -- By extensionality, this can be done by proving a formal approximation.
+  show (⟦por_test b⟧) Ev.nil ◃ por_test b.not
+  intro f f' f_f'
+
+  -- Which by definition, is done by proving another formal approximation.
+  show (⟦por_test b⟧) Ev.nil f' ◃ (por_test b.not).app f
+  intro n a_n
+
+  -- But if the left side has a non-initial denotation, then we have a contradiction.
   exfalso
-  exact por_is_undefinable (por_test_some_den k)
+  have bad : (por_test b).app f ⇓ _ := (por_test b).approx' _ _ f_f' _ a_n
+  exact por_is_undefinable (por_test_some_den bad)
 
 /-
 Therefore, our denotational semantics is not fully abstract.

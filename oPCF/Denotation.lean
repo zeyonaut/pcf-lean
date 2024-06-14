@@ -107,10 +107,10 @@ noncomputable def Ren.den (r : Ren Γ Δ) : Cont (⟦Δ cx⟧) (⟦Γ cx⟧) :=
 
 notation:100 "⟦" r "⟧" => Ren.den r
 
-noncomputable def Subst.den (σ : Subst Γ Δ) : Cont (⟦Δ cx⟧) (⟦Γ cx⟧) :=
+noncomputable def Sb.den (σ : Sb Γ Δ) : Cont (⟦Δ cx⟧) (⟦Γ cx⟧) :=
   ⟨⟨fun ρ _ x ↦ (⟦x.sub σ⟧) ρ, fun ρ' _ x ↦ (⟦x.sub σ⟧) • ρ'⟩, fun _ x ↦ (⟦x.sub σ⟧).sub⟩
 
-notation:100 "⟦" σ "⟧" => Subst.den σ
+notation:100 "⟦" σ "⟧" => Sb.den σ
 
 /-
 The denotations of evaluation contexts are functions that transform one term denotation into another.
@@ -119,7 +119,7 @@ We represent these higher order functions in an uncurried form for convenience.
 -/
 
 noncomputable def Con.den : Con Δ υ Γ τ → Cont (⟦Γ cx⟧ × Cont (⟦Δ cx⟧) (⟦υ ty⟧)) ⟦τ ty⟧
-  | id'        => Cont.uncurry Cont.id' ∘' Cont.swap
+  | id         => Cont.uncurry Cont.id ∘' Cont.swap
   | comp C₀ C₁ => Cont.uncurry (Cont.curry (C₁.den ∘' Cont.swap)
                              ∘' Cont.curry (C₀.den ∘' Cont.swap)) ∘' Cont.swap
   | sub C σ => Cont.uncurry ((Cont.curry C.den) ∘' (⟦σ⟧))
@@ -143,10 +143,10 @@ notation:100 "⟦" C " con⟧" => Con.den C
 The denotation of ground values yields semantic values independently of the environment given.
 -/
 
-theorem deno_ground_bool : ∀ {n}, (⟦.from_bool n⟧) ρ = (.some n)
+theorem Tm.from_bool_den_eq : ∀ {n}, (⟦.from_bool n⟧) ρ = (.some n)
   | .false | .true => rfl
 
-theorem deno_ground_nat : (⟦.from_nat n⟧) ρ = (.some n) := by
+theorem Tm.from_nat_den_eq : (⟦.from_nat n⟧) ρ = (.some n) := by
   induction n with
   | zero => rfl
   | succ n Φ =>
@@ -196,14 +196,14 @@ theorem Tm.ren_den_eq (e : Γ ⊢ τ) : ∀ {Δ}, (r : Ren Γ Δ) → ⟦e.ren r
         := by rw [Cont.pair_after (⟦t⟧) (⟦f⟧) (⟦r⟧), Cont.pair_after (⟦s⟧) _ (⟦r⟧)]
       _ = (⟦s.cond t f⟧) ∘' ⟦r⟧ := rfl
 
-theorem ren_s_eq : (⟦Ren.weak⟧) (Ev.from (ρ, d)) = ρ := by
+theorem Ren.weak_den_eq : (⟦Ren.weak⟧) (Ev.from (ρ, d)) = ρ := by
   rfl
 
 /-
 The denotation of a term substitution is compositional.
 -/
 
-theorem Tm.sub_den_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.sub σ⟧ = (⟦e⟧) ∘' (⟦σ⟧) := by
+theorem Tm.sub_den_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Sb Γ Δ) → ⟦e.sub σ⟧ = (⟦e⟧) ∘' (⟦σ⟧) := by
   induction e with
   | fn e Φ =>
     intro _ σ
@@ -224,7 +224,7 @@ theorem Tm.sub_den_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
               _ = (⟦(x.sub σ).ren Ren.weak⟧) (Ev.from (ρ, d)) := rfl
               _ = ((⟦x.sub σ⟧) ∘' ⟦Ren.weak⟧) (Ev.from (ρ, d)) := by rw [(x.sub σ).ren_den_eq]
               _ = (⟦x.sub σ⟧) ((⟦Ren.weak⟧) (Ev.from (ρ, d))) := rfl
-              _ = (⟦x.sub σ⟧) (ρ) := by rw [ren_s_eq]
+              _ = (⟦x.sub σ⟧) (ρ) := by rw [Ren.weak_den_eq]
               _ = Ev.from ((⟦σ⟧) ρ, d) τ x.s := rfl
         }
         calc ((((⟦e⟧) ∘' ⟦σ.keep _⟧) ∘' Ev.from).curry ρ) d
@@ -246,7 +246,7 @@ theorem Tm.sub_den_eq (e : Γ ⊢ τ) : ∀ {Δ}, (σ : Subst Γ Δ) → ⟦e.su
       _ = (⟦s.cond t f⟧) ∘' ⟦σ⟧ := rfl
 
 -- Proposition 27 (Substitution property of the semantic function)
-theorem Subst.inst_den_eq : (⟦Subst.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
+theorem Sb.inst_den_eq : (⟦Sb.inst a⟧) ρ = (Ev.from (ρ, (⟦a⟧) ρ)) := by
   funext _ x; cases x with | _ => rfl
 
 /-
@@ -255,7 +255,7 @@ The denotation of a evaluation context filling is compositional.
 
 def Con.fill_den_eq (C : Con Δ υ Γ τ) : ⟦C t⟧ = ((⟦C con⟧) ∘' Cont.swap).curry (⟦t⟧) := by
   induction C with
-  | id'              => rfl
+  | id               => rfl
   | comp C₀ C₁ Φ₀ Φ₁ => show ⟦C₁ (C₀ t)⟧ = _; rw [Φ₁, Φ₀]; rfl
   | sub C σ Φ        => show ⟦(C t).sub σ⟧ = _; rw [(C t).sub_den_eq, Φ]; rfl
   | succ _ Φ | pred _ Φ | zero? _ Φ | fix _ Φ => exact congrArg _ Φ

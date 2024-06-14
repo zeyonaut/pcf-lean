@@ -7,10 +7,10 @@ which evaluates to true exactly when filled with a term which evaluates to that 
 -/
 
 def Ty.IsGround.test_con {v : Γ ⊢ γ} : (γ.IsGround) → (v.IsValue) → Con Δ γ Δ .bool
-  | .bool, .true   => .id'
-  | .bool, .false  => Con.id'.cond_s .false .true
-  | .nat,  .zero   => Con.id'.zero?
-  | .nat,  .succ n => Con.id'.pred.comp (IsGround.nat.test_con n)
+  | .bool, .true   => .id
+  | .bool, .false  => Con.id.cond_s .false .true
+  | .nat,  .zero   => Con.id.zero?
+  | .nat,  .succ n => Con.id.pred.comp (IsGround.nat.test_con n)
 
 noncomputable def Ty.IsGround.test_con_true_iff {v : _ ⊢ γ}
   (γ_is_ground : γ.IsGround) (v_is_value : v.IsValue) (t) :
@@ -26,7 +26,7 @@ noncomputable def Ty.IsGround.test_con_true_iff {v : _ ⊢ γ}
       cases γ_is_ground with
       | bool =>
         cases test_t_true with
-        | cond_true _ false_true => injection false_true.determinism Tm.IsValue.false.self_evaluates
+        | cond_true _ false_true => injection false_true.determinism Tm.IsValue.false.evaluates
         | cond_false t_false => exact t_false
     | zero =>
       cases γ_is_ground with
@@ -46,7 +46,7 @@ noncomputable def Ty.IsGround.test_con_true_iff {v : _ ⊢ γ}
       | bool => exact t_v
     | false =>
       cases γ_is_ground with
-      | bool => exact .cond_false t_v Tm.IsValue.true.self_evaluates
+      | bool => exact .cond_false t_v Tm.IsValue.true.evaluates
     | zero =>
       cases γ_is_ground with
       | nat => exact Eval.zero?_zero t_v
@@ -90,11 +90,11 @@ noncomputable def approx_implies_con_preord (t₀ t₁ : .nil ⊢ τ) : (((⟦t�
   show ∀ (C : Con ..), C t₀ ⇓ .true → C t₁ ⇓ .true
   intro C C_t₀_true
   have den_C_t₀_true := soundness C_t₀_true
-  have C_C := C.approx Subst.Approx.id'
-  have C_t₀_C_t₁ : (⟦C con⟧) (Ev.nil, ⟦t₀⟧) ◃ (C t₁).sub (Subst.id') := C_C (⟦t₀⟧) t₁ (by
+  have C_C := C.approx Sb.Approx.id
+  have C_t₀_C_t₁ : (⟦C con⟧) (Ev.nil, ⟦t₀⟧) ◃ (C t₁).sub (Sb.id) := C_C (⟦t₀⟧) t₁ (by
     intro ρ σ _
     have eq_ρ : ρ = Ev.nil := by funext _ x; cases x
-    have eq_σ : σ = Subst.id' := by funext _ x; cases x
+    have eq_σ : σ = Sb.id := by funext _ x; cases x
     rw [eq_ρ, eq_σ, Tm.sub_id_eq]
     exact t₀_t₁
   )

@@ -6,9 +6,9 @@ which take a term of a type in some context and produce a term of another type i
 -/
 
 inductive Con : Cx → Ty → Cx → Ty → Type
-  | id'    : Con Γ τ Γ τ
+  | id     : Con Γ τ Γ τ
   | comp   : Con Γ₀ τ₀ Γ₁ τ₁   → Con Γ₁ τ₁ Γ₂ τ₂   → Con Γ₀ τ₀ Γ₂ τ₂
-  | sub    : Con Δ ν Γ τ       → Subst Γ Γ'        → Con Δ ν Γ' τ
+  | sub    : Con Δ ν Γ τ       → Sb Γ Γ'           → Con Δ ν Γ' τ
   | succ   : Con Δ ν Γ .nat    → Con Δ ν Γ .nat
   | pred   : Con Δ ν Γ .nat    → Con Δ ν Γ .nat
   | zero?  : Con Δ ν Γ .nat    → Con Δ ν Γ .bool
@@ -22,7 +22,7 @@ inductive Con : Cx → Ty → Cx → Ty → Type
 
 -- Filling the hole of an evaluation context with a term produces another term.
 def Con.fill : Con Δ υ Γ τ → Δ ⊢ υ → Γ ⊢ τ
-  | id'         , t => t
+  | id          , t => t
   | comp C C'   , f => C'.fill (C.fill f)
   | sub C σ     , f => (C.fill f).sub σ
   | succ C      , t => (C.fill t).succ

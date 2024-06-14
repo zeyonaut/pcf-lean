@@ -15,10 +15,10 @@ def Tm.Approx : ∀ {τ}, (.nil ⊢ τ) → ↑⟦τ ty⟧ → Type
 notation:75 d " ◃ " t => Tm.Approx t d
 
 -- Definition 29
-def Subst.Approx {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Subst Γ .nil) : Type :=
+def Sb.Approx {Γ : Cx} (ρ : ⟦Γ cx⟧) (σ : Sb Γ .nil) : Type :=
   ∀ τ x, ρ τ x ◃ x.sub σ
 
-infixl:75 " ◃ " => Subst.Approx
+infixl:75 " ◃ " => Sb.Approx
 
 def Con.Approx (D: (Cont (Cont ⟦Δ cx⟧ ⟦υ ty⟧) (⟦τ ty⟧))) (C : Con Δ υ .nil τ) : Type :=
     ∀ (d : Cont ⟦Δ cx⟧ ⟦υ ty⟧) (t : Δ ⊢ υ),
@@ -27,7 +27,7 @@ def Con.Approx (D: (Cont (Cont ⟦Δ cx⟧ ⟦υ ty⟧) (⟦τ ty⟧))) (C : Con
 infix:75 " ◃ " => Con.Approx
 
 /-
-The approximations of a term form a {0, ω}-coclosed subset.
+The approximations of a term form include the initial element and suprema of approximations.
 -/
 
 -- Lemma 31
@@ -40,7 +40,7 @@ noncomputable def supremum_approximates {τ} {t : .nil ⊢ τ} : ∀ {c}, (∀ n
   induction τ with
   | bool | nat =>
     intro c c_t d sc_d
-    have a := flat_sup_some.mpr sc_d
+    have a := Flat.sup_some.mpr sc_d
     exact c_t a.choose d a.choose_spec
   | pow τ₀ τ₁ _ Φ₁ =>
     intro c c_t d u u_d
@@ -75,9 +75,9 @@ def same_eval_same_approx
 def fn_same_eval {e : _ ⊢ _} : (e.sub (σ.push t) ⇓ v) → (e.fn.sub σ).app t ⇓ v := by
   intro eσu_v
   apply Eval.app Eval.fn
-  calc (e.sub (σ ∷ₛ _)).sub (Subst.inst t)
-    _ = e.sub ((σ ∷ₛ _) ⬝ Subst.inst t) := by rw [Tm.sub_comp_eq]
-    _ = e.sub (σ.push t)                := by rw [Subst.push_eq]
+  calc (e.sub (σ ∷ₛ _)).sub (Sb.inst t)
+    _ = e.sub ((σ ∷ₛ _) ⬝ Sb.inst t) := by rw [Tm.sub_comp_eq]
+    _ = e.sub (σ.push t)                := by rw [Sb.push_eq]
     _ ⇓ v                               := eσu_v
 
 /-
@@ -110,7 +110,7 @@ def Tm.Approx.pred {t : Tm ..} {d} : (d ◃ t) → (Cont.pred d ◃ t.pred) := b
         injection pred_d_n with pred_d_n
         change d = n at pred_d_n
         rw [pred_d_n] at d_t
-        exact .pred (from_nat_is_value n) (d_t n.succ rfl)
+        exact .pred (Tm.from_nat_is_value n) (d_t n.succ rfl)
 
 def Tm.Approx.zero? {t : Tm ..} {d} : (d ◃ t) → (Cont.flat Nat.zero? d ◃ t.zero?) := by
   intro d_t n zero?_d_n
@@ -124,7 +124,7 @@ def Tm.Approx.zero? {t : Tm ..} {d} : (d ◃ t) → (Cont.flat Nat.zero? d ◃ t
       exact .zero?_zero (d_t .zero rfl)
     | succ d =>
       rw [← zero?_d_n]
-      exact .zero?_succ (from_nat_is_value d) (d_t (d.succ) rfl)
+      exact .zero?_succ (Tm.from_nat_is_value d) (d_t (d.succ) rfl)
 
 noncomputable def Tm.Approx.fix {t : _ ⊢ τ ⇒ τ} {d} : (d ◃ t) → (Cont.fix d ◃ t.fix) := by
   intro d_t
@@ -155,9 +155,9 @@ noncomputable def Tm.Approx.cond {s : .nil ⊢ .bool} {s'} {t f : .nil ⊢ τ} {
 We also lift operations on substitutions to operations on their approximations.
 -/
 
-def Subst.Approx.id' : Ev.nil ◃ Subst.id' := by intro τ x; cases x
+def Sb.Approx.id : Ev.nil ◃ Sb.id := by intro τ x; cases x
 
-def Subst.Approx.push {σ : Subst Γ .nil} {ρ : ⟦Γ cx⟧} (ρ_σ : ρ ◃ σ)
+def Sb.Approx.push {σ : Sb Γ .nil} {ρ : ⟦Γ cx⟧} (ρ_σ : ρ ◃ σ)
   {u : .nil ⊢ τ} {d : ↑⟦τ ty⟧} (d_u : d ◃ u) : ρ.push d ◃ σ.push u := by
   intro τ x
   cases x with
@@ -170,7 +170,7 @@ formally approximated by its denotation.
 -/
 
 -- Theorem 29 (Fundamental property of formal approximation)
-noncomputable def Tm.approx (t : Γ ⊢ τ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ .nil}
+noncomputable def Tm.approx (t : Γ ⊢ τ) {ρ : ⟦Γ cx⟧} {σ : Sb Γ .nil}
   : (ρ ◃ σ) → (⟦t⟧) ρ ◃ t.sub σ := by
   intro ρ_σ
   induction t with
@@ -192,16 +192,21 @@ noncomputable def Tm.approx (t : Γ ⊢ τ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ .n
   | fix _ Φ             => exact (Φ ρ_σ).fix
   | cond _ _ _ Φs Φt Φf => exact (Φs ρ_σ).cond (Φt ρ_σ) (Φf ρ_σ)
 
-noncomputable def Subst.approx (σ' : Subst Γ' Γ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ Cx.nil}
+noncomputable def Tm.approx' (t : .nil ⊢ τ) : (⟦t⟧) Ev.nil ◃ t := by
+  have a := t.approx Sb.Approx.id
+  rw [Tm.sub_id_eq] at a
+  exact a
+
+noncomputable def Sb.approx (σ' : Sb Γ' Γ) {ρ : ⟦Γ cx⟧} {σ : Sb Γ Cx.nil}
   : (ρ ◃ σ) → ((⟦σ'⟧) ρ ◃ σ' ⬝ σ) := by
   intro ρ_σ _ x
   exact (x.sub σ').approx ρ_σ
 
-noncomputable def Con.approx (C : Con Δ υ Γ τ) {ρ : ⟦Γ cx⟧} {σ : Subst Γ .nil}
+noncomputable def Con.approx (C : Con Δ υ Γ τ) {ρ : ⟦Γ cx⟧} {σ : Sb Γ .nil}
   : (ρ ◃ σ) → ⟦C con⟧.curry ρ ◃ C.sub σ := by
   intro ρ_σ d t d_t
   induction C with
-  | id' =>
+  | id =>
     exact d_t ρ_σ
   | comp C₀ C₁ Φ₀ Φ₁ =>
     let d' := (((⟦C₀ con⟧) ∘' Cont.swap).curry d)

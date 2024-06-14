@@ -15,7 +15,7 @@ This also affects the proof of full abstraction failure, which has been reworked
 ## Contents
 
 The contents of this formalization are best viewed interactively through a Lean installation, such as the [official VSCode extension for Lean 4](https://github.com/leanprover/vscode-lean4), which allows users to step through proofs and jump between definitions.
-Nevertheless, some effort has been made to document or otherwise structure the code to be as readable as possible without the interactivity of a theorem prover.
+Nevertheless, some effort has been made to document or otherwise structure the code to be as readable as possible without the interactivity of a theorem prover (except where it hasn't; contributions welcome!).
 
 ### Prelude
 

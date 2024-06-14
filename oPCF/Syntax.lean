@@ -81,7 +81,7 @@ def Tm.IsValue.extract_nat : {v : nil ⊢ .nat} → v.IsValue → (n : Nat) ×' 
   | .zero, .zero => ⟨.zero, rfl⟩
   | .succ _, .succ v' => let Φ := Tm.IsValue.extract_nat v'; ⟨Φ.fst.succ, congrArg Tm.succ Φ.snd⟩
 
-def from_nat_is_value : ∀ n, (Tm.from_nat n : Γ ⊢ .nat).IsValue
+def Tm.from_nat_is_value : ∀ n, (Tm.from_nat n : Γ ⊢ .nat).IsValue
   | .zero   => .zero
   | .succ n => .succ (from_nat_is_value n)
 
@@ -95,11 +95,6 @@ def Cx.append (Γ : Cx) : Cx → Cx
 
 instance : Append Cx where
   append := Cx.append
-
-def Cx.append_assoc (Γ Δ₀ Δ₁ : Cx) : (Γ ++ Δ₀) ++ Δ₁ = Γ ++ (Δ₀ ++ Δ₁) := by
-  induction Δ₁ with
-  | nil => rfl
-  | cons Δ₁ τ Φ => calc ((Γ ++ Δ₀) ++ Δ₁) ∷ τ = (Γ ++ (Δ₀ ++ Δ₁)) ∷ τ := by rw [Φ]
 
 /-
 We also define helper functions for converting terms to variables and weakening variables.

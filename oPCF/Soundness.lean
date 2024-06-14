@@ -16,17 +16,17 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = Cont.pred ((⟦t⟧) ρ)      := rfl
       _ = Cont.pred ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
       _ = ((Cont.pred ∘' Cont.flat (Nat.succ)) ∘' (⟦v⟧)) ρ := rfl
-      _ = (Cont.id' ∘' (⟦v⟧)) ρ    := by rw [pred_flat_succ_eq_id]
+      _ = (Cont.id ∘' (⟦v⟧)) ρ     := by rw [Cont.pred_flat_succ_eq_id]
       _ = (⟦v⟧) ρ                  := rfl
   | @zero?_succ v t v' _ t_v_succ =>
     apply Cont.ext; funext ρ
     have ⟨n, vn⟩ := v'.extract_nat
     calc  (⟦t.zero?⟧) ρ
-      _ = Cont.flat (Nat.zero?) ((⟦t⟧) ρ)      := rfl
-      _ = Cont.flat (Nat.zero?) ((⟦v.succ⟧) ρ) := by rw [t_v_succ]
-      _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦v⟧) ρ)) := rfl
+      _ = Cont.flat (Nat.zero?) ((⟦t⟧) ρ)                             := rfl
+      _ = Cont.flat (Nat.zero?) ((⟦v.succ⟧) ρ)                        := by rw [t_v_succ]
+      _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦v⟧) ρ))           := rfl
       _ = Cont.flat (Nat.zero?) (Cont.flat .succ ((⟦.from_nat n⟧) ρ)) := by rw [vn]
-      _ = Cont.flat (Nat.zero?) (Cont.flat .succ (.some n)) := by rw [deno_ground_nat]
+      _ = Cont.flat (Nat.zero?) (Cont.flat .succ (.some n))           := by rw [Tm.from_nat_den_eq]
       _ = (⟦.false⟧) ρ := rfl
   | @cond_true _ s t f tv _ _ se te =>
     apply Cont.ext; funext ρ
@@ -46,9 +46,9 @@ theorem soundness {t v : Cx.nil ⊢ τ} : t ⇓ v → ⟦t⟧ = ⟦v⟧ := by
       _ = ((⟦f⟧) ρ) ((⟦a⟧) ρ)           := rfl
       _ = ((⟦e.fn⟧) ρ) ((⟦a⟧) ρ)        := by rw [sf]
       _ = (⟦e⟧) (Ev.from (ρ, (⟦a⟧) ρ))  := rfl
-      _ = (⟦e⟧) ((⟦Subst.inst a⟧) ρ)    := by rw [Subst.inst_den_eq]
-      _ = ((⟦e⟧) ∘' (⟦Subst.inst a⟧)) ρ := rfl
-      _ = (⟦e.sub (Subst.inst a)⟧) ρ    := by rw [e.sub_den_eq]
+      _ = (⟦e⟧) ((⟦Sb.inst a⟧) ρ)       := by rw [Sb.inst_den_eq]
+      _ = ((⟦e⟧) ∘' (⟦Sb.inst a⟧)) ρ    := rfl
+      _ = (⟦e.sub (Sb.inst a)⟧) ρ       := by rw [e.sub_den_eq]
       _ = (⟦v⟧) ρ                       := by rw [sv]
   | @fix _ v f _ f_v =>
     apply Cont.ext; funext ρ
@@ -70,7 +70,7 @@ def compositionality {t₀ t₁ : Δ ⊢ ν} (p : ⟦t₀⟧ = ⟦t₁⟧) : ∀
     show ⟦(C.fill t₀).sub σ⟧ = ⟦(C.fill t₁).sub σ⟧
     rw [(C.fill t₀).sub_den_eq, (C.fill t₁).sub_den_eq, Φ p]
   -- All other cases are immediate by induction.
-  | id'            => exact p
+  | id             => exact p
   | comp _ _ Φ Φ'  => exact Φ' (Φ p)
   | succ _ Φ       => exact congrArg (fun t ↦ Cont.flat (Nat.succ) ∘' t) (Φ p)
   | pred _ Φ       => exact congrArg (fun t ↦ Cont.pred ∘' t) (Φ p)
@@ -91,17 +91,17 @@ evaluates to said value.
 noncomputable def adequacy {t v : Cx.nil ⊢ τ} : τ.IsGround → v.IsValue → ⟦t⟧ = ⟦v⟧ → t ⇓ v := by
   intro τ_is_ground v_is_value deno_t_v
   cases τ_is_ground with
-  -- The cases for both bool and nat are identical, but we separate the two to avoid complications.
+  -- The cases for both bool and nat are identical, but we separate the two to avoid complexity.
   | bool =>
     have ⟨n, v_n⟩ := v_is_value.extract_bool
-    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := t.approx Subst.Approx.id'
-    rw [deno_t_v, v_n, deno_ground_bool, Tm.sub_id_eq] at lem
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Sb.id) := t.approx Sb.Approx.id
+    rw [deno_t_v, v_n, Tm.from_bool_den_eq, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
   | nat =>
     have ⟨n, v_n⟩ := v_is_value.extract_nat
-    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Subst.id') := t.approx Subst.Approx.id'
-    rw [deno_t_v, v_n, deno_ground_nat, Tm.sub_id_eq] at lem
+    have lem : (⟦t⟧) Ev.nil ◃ t.sub (Sb.id) := t.approx Sb.Approx.id
+    rw [deno_t_v, v_n, Tm.from_nat_den_eq, Tm.sub_id_eq] at lem
     rw [v_n]
     exact lem n rfl
 
