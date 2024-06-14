@@ -1,4 +1,4 @@
-import «oPCF».Approximation
+import «PCF».Approximation
 
 /-
 Soundness states that the evaluand and result of any evaluation have the same denotation.
